@@ -147,7 +147,7 @@ export function memoryParts(state, settings) {
     return { date, events: kept.join('\n'), full: header + kept.join('\n') };
 }
 export function importState(raw) {
-    if (!raw || raw.version !== 1 || !parseDate(raw.currentDate) || !Array.isArray(raw.events) || raw.events.length > 5000) throw new Error('Это не экспорт Calendar v1.');
+    if (!raw || raw.version !== 1 || !parseDate(raw.currentDate) || !Array.isArray(raw.events) || raw.events.length > 5000) throw new Error('Это не экспорт календаря в формате v1.');
     const state = emptyState();
     for (const [key, limit] of Object.entries({ country: 120, setting: 400, era: 80, dateBasis: 240 })) state[key] = clean(raw[key], limit);
     state.currentDate = raw.currentDate;

@@ -37,7 +37,7 @@ export function startCalendar() {
         if (create && !c.chatMetadata[KEY]) c.chatMetadata[KEY] = emptyState();
         return c.chatMetadata[KEY] || null;
     }
-    function notify(type, text) { globalThis.toastr?.[type]?.(text, 'Calendar'); }
+    function notify(type, text) { globalThis.toastr?.[type]?.(text, 'Календарь'); }
     function publish(text) {
         if (text !== undefined) status = text;
         for (const listener of listeners) listener();
@@ -91,11 +91,11 @@ export function startCalendar() {
             signal.throwIfAborted();
             return parseReply(typeof result === 'string' ? result : result?.content);
         }
-        throw new Error('Выбери сохранённый профиль в Calendar или активный профиль Connection Manager.');
+        throw new Error('Выбери сохранённый профиль в настройках календаря или активный профиль Connection Manager.');
     }
     async function run(mode = 'scan', targetYear = null, automatic = false) {
         if (job || disposed) return;
-        if (!settings.enabled) { if (!automatic) notify('info', 'Включи Calendar в настройках.'); return; }
+        if (!settings.enabled) { if (!automatic) notify('info', 'Включи календарь в настройках.'); return; }
         if (generationActive || ctx().streamingProcessor && !ctx().streamingProcessor.isFinished) {
             if (!automatic) notify('info', 'Дождись завершения ответа персонажа.');
             return;
@@ -214,8 +214,8 @@ export function startCalendar() {
             console.warn(`[Calendar] Macro ${name} already exists; keeping its owner.`);
             continue;
         }
-        if (newMacros) initial.macros.register(name, { description: 'Calendar: память и хронология текущего РП', handler: () => macroValue(part) });
-        else initial.registerMacro?.(name, () => macroValue(part), 'Calendar: память текущего РП');
+        if (newMacros) initial.macros.register(name, { description: 'Календарь: память и хронология текущего РП', handler: () => macroValue(part) });
+        else initial.registerMacro?.(name, () => macroValue(part), 'Календарь: память текущего РП');
         ownedMacros.set(name, registry?.getMacro?.(name));
     }
     const api = {

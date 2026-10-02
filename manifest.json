@@ -1,11 +1,11 @@
 {
-    "display_name": "Calendar · Календарь сюжета",
+    "display_name": "Календарь сюжета",
     "loading_order": 110,
     "requires": [],
     "optional": ["connection-manager"],
     "js": "index.js",
     "css": "style.css",
     "author": "Nufahi",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "homePage": "https://github.com/Nufahi/ST-Calendar"
 }

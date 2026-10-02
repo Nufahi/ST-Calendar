@@ -71,8 +71,8 @@ export function mountUi(api) {
     let panel;
     let wand;
     const context = () => SillyTavern.getContext();
-    const inform = text => globalThis.toastr?.info?.(text, 'Calendar');
-    const fail = error => globalThis.toastr?.error?.(error.message, 'Calendar');
+    const inform = text => globalThis.toastr?.info?.(text, 'Календарь');
+    const fail = error => globalThis.toastr?.error?.(error.message, 'Календарь');
     function jump(date) {
         const p = parseDate(date); if (!p) return;
         selected = date; year = p.year; month = p.month;
@@ -93,7 +93,7 @@ export function mountUi(api) {
         const header = node('header', 'stcal-header');
         const brand = node('div', 'stcal-brand');
         const mark = node('div', 'stcal-mark'); mark.append(icon('calendar'));
-        const text = node('div'); const heading = node('h2', '', 'Calendar'); heading.id = 'stcal-title';
+        const text = node('div'); const heading = node('h2', '', 'Календарь'); heading.id = 'stcal-title';
         text.append(heading, node('p', 'stcal-eyebrow', 'У каждой истории есть своё время'));
         brand.append(mark, text);
         header.append(brand, iconButton('Закрыть календарь', close, 'close'));
@@ -377,7 +377,7 @@ export function mountUi(api) {
         const drawer = node('div', 'inline-drawer');
         const header = node('div', 'inline-drawer-toggle inline-drawer-header');
         header.tabIndex = 0; header.setAttribute('role', 'button');
-        const title = node('b', 'stcal-settings-title'); title.append(icon('calendar'), node('span', '', 'Calendar · Календарь'));
+        const title = node('b', 'stcal-settings-title'); title.append(icon('calendar'), node('span', '', 'Календарь'));
         const chevron = node('span', 'stcal-settings-chevron'); chevron.append(icon('right'));
         header.append(title, chevron);
         const content = node('div', 'inline-drawer-content'); content.id = 'stcal-settings-content'; content.hidden = true;
@@ -407,7 +407,7 @@ export function mountUi(api) {
         const menu = document.getElementById('extensionsMenu');
         if (menu && !wand?.isConnected) {
             wand = node('div', 'list-group-item flex-container flexGap5 interactable'); wand.id = 'stcal-wand'; wand.tabIndex = 0; wand.setAttribute('role', 'button');
-            const glyph = node('span', 'extensionsMenuExtensionButton'); glyph.append(icon('calendar')); wand.append(glyph, node('span', '', 'Calendar · Календарь'));
+            const glyph = node('span', 'extensionsMenuExtensionButton'); glyph.append(icon('calendar')); wand.append(glyph, node('span', '', 'Календарь'));
             wand.addEventListener('click', () => { menu.style.display = 'none'; open(); });
             wand.addEventListener('keydown', e => { if (['Enter', ' '].includes(e.key)) { e.preventDefault(); wand.click(); } }); menu.append(wand);
         }

@@ -1,0 +1,153 @@
+/* Calendar: theme-adaptive surfaces, scoped controls, no external assets. */
+.stcal-shell, #stcal-fab, .stcal-settings-entry {
+    --stcal-bg: var(--SmartThemeBlurTintColor, #1b1e27);
+    --stcal-fg: var(--SmartThemeBodyColor, #e5e2dc);
+    --stcal-border: var(--SmartThemeBorderColor, rgba(255, 255, 255, .14));
+    --stcal-accent: var(--SmartThemeQuoteColor, #d2b791);
+    --stcal-soft: rgba(160, 150, 140, .10);
+    --stcal-muted: var(--stcal-fg);
+    color: var(--stcal-fg);
+}
+@supports (color: color-mix(in srgb, white, black)) {
+    .stcal-shell, #stcal-fab, .stcal-settings-entry {
+        --stcal-soft: color-mix(in srgb, var(--stcal-accent) 10%, transparent);
+        --stcal-muted: color-mix(in srgb, var(--stcal-fg) 66%, transparent);
+    }
+}
+.stcal-shell {
+    box-sizing: border-box;
+    width: min(720px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+    border: 1px solid var(--stcal-border);
+    border-radius: 22px;
+    background: var(--stcal-bg);
+    box-shadow: 0 20px 80px #0006;
+    font-family: inherit;
+    font-size: calc(var(--mainFontSize, 16px) * .94);
+    text-align: left;
+    overflow: hidden;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+.stcal-shell[open] { display: flex; flex-direction: column; }
+.stcal-shell::backdrop { background: #0007; }
+.stcal-shell.stcal-floating {
+    position: fixed;
+    inset: auto 18px 88px auto;
+    margin: 0;
+    width: min(520px, calc(100vw - 24px));
+    max-height: calc(100vh - 115px);
+    max-height: calc(100dvh - 115px);
+    z-index: 3100; /* Above chat/drawers, below native modal top layer. */
+}
+.stcal-shell *, .stcal-shell *::before, .stcal-shell *::after { box-sizing: border-box; }
+.stcal-shell [hidden], #stcal-fab[hidden], #extensionsMenu > #stcal-wand[hidden] { display: none; }
+.stcal-shell h2, .stcal-shell h3, .stcal-shell p { margin: 0; }
+.stcal-shell h2 { font-size: 1.35em; font-weight: 600; letter-spacing: -.035em; }
+.stcal-shell h3 { font-size: .98em; font-weight: 600; }
+.stcal-icon { display: block; width: 20px; height: 20px; flex: 0 0 auto; pointer-events: none; }
+.stcal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 22px 24px 16px; }
+.stcal-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.stcal-brand > div { min-width: 0; }
+.stcal-mark { display: grid; place-items: center; width: 44px; height: 48px; border-radius: 12px; border: 1px solid var(--stcal-border); background: var(--stcal-soft); }
+.stcal-mark .stcal-icon { width: 27px; height: 27px; }
+.stcal-eyebrow { font-size: .72em; letter-spacing: .03em; line-height: 1.5; color: var(--stcal-muted); }
+.stcal-tabs { display: flex; gap: 4px; padding: 4px; margin: 0 24px 16px; background: var(--stcal-soft); border: 1px solid var(--stcal-border); border-radius: 99px; }
+.stcal-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    min-width: 0; min-height: 36px; padding: 8px 12px;
+    border: 1px solid var(--stcal-border); border-radius: 10px;
+    color: inherit; background: transparent; font: inherit; font-size: .85em; line-height: 1.25;
+    cursor: pointer; text-align: center; overflow-wrap: anywhere;
+    transition: background .15s ease, border-color .15s ease;
+}
+.stcal-shell .stcal-btn:hover, .stcal-settings-entry .stcal-btn:hover { background: var(--stcal-soft); border-color: var(--stcal-accent); }
+.stcal-shell .stcal-btn:disabled { cursor: wait; opacity: .45; }
+.stcal-shell :is(button, input, select, textarea, summary):focus-visible, #stcal-fab:focus-visible, #stcal-wand:focus-visible, .stcal-settings-entry button:focus-visible { outline: 2px solid var(--stcal-accent, var(--SmartThemeQuoteColor, #d2b791)); outline-offset: 3px; }
+.stcal-shell .stcal-primary { color: var(--stcal-accent); background: var(--stcal-soft); border-color: var(--stcal-accent); }
+.stcal-shell .stcal-icon-btn { padding: 8px; width: 36px; flex: 0 0 auto; border-color: transparent; }
+.stcal-tabs .stcal-btn { flex: 1 1 0; border-radius: 99px; border-color: transparent; }
+.stcal-tabs .stcal-btn[aria-current="true"] { background: var(--stcal-bg); border-color: var(--stcal-border); color: var(--stcal-accent); box-shadow: 0 2px 8px #0001; }
+.stcal-body { display: flex; flex-direction: column; gap: 16px; min-height: 0; padding: 0 24px 24px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.stcal-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--stcal-border); border-radius: 15px; background: var(--stcal-soft); }
+.stcal-empty { align-items: center; text-align: center; padding: 32px 24px; gap: 20px; }
+.stcal-empty > .stcal-icon { width: 54px; height: 54px; color: var(--stcal-accent); }
+.stcal-shell .stcal-hint { color: var(--stcal-muted); font-size: .8em; line-height: 1.6; overflow-wrap: anywhere; }
+.stcal-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border: 1px solid var(--stcal-border); border-radius: 15px; background: var(--stcal-soft); }
+.stcal-hero > div { min-width: 0; }
+.stcal-date-title { font-variant-numeric: tabular-nums; font-size: 2em; letter-spacing: -.04em; line-height: 1.3; }
+.stcal-place { margin-top: 4px; font-size: .85em; color: var(--stcal-accent); overflow-wrap: anywhere; }
+.stcal-month-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.stcal-shell .stcal-month-title { font-size: 1.18em; letter-spacing: -.02em; border: 0; }
+.stcal-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.stcal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.stcal-weekday { text-align: center; font-size: .72em; color: var(--stcal-muted); padding: 5px 0 10px; }
+.stcal-shell .stcal-day { position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 55px; padding: 10px 2px 7px; border-color: transparent; font-size: .96em; font-variant-numeric: tabular-nums; }
+.stcal-shell .stcal-day:hover { background: var(--stcal-soft); }
+.stcal-shell .stcal-day[aria-pressed="true"] { border-color: var(--stcal-accent); background: var(--stcal-soft); }
+.stcal-day.stcal-today .stcal-day-number { color: var(--stcal-accent); font-weight: 800; text-decoration: underline; text-underline-offset: 4px; }
+.stcal-dots { display: flex; justify-content: center; gap: 3px; height: 5px; }
+.stcal-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; flex: 0 0 auto; background: currentColor; }
+.stcal-dot.stcal-holiday { background: var(--stcal-accent); }
+.stcal-dot.stcal-world { background: #89b8bb; }
+.stcal-dot.stcal-story { background: #cc8ea3; }
+.stcal-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; font-size: .7em; color: var(--stcal-muted); }
+.stcal-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.stcal-event { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-top: 1px solid var(--stcal-border); }
+.stcal-event > .stcal-dot { margin-top: 8px; }
+.stcal-event-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.stcal-event-copy strong { font-weight: 600; font-size: .92em; }
+.stcal-event-copy p { font-size: .82em; line-height: 1.5; color: var(--stcal-muted); }
+.stcal-event-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; max-width: 108px; }
+.stcal-event-actions [aria-pressed="true"] { color: var(--stcal-accent); background: var(--stcal-soft); }
+.stcal-year-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.stcal-mini { min-width: 0; padding: 7px; border: 1px solid var(--stcal-border); border-radius: 12px; }
+.stcal-mini > .stcal-btn { width: 100%; border: 0; padding: 6px 2px; font-size: .8em; }
+.stcal-grid-mini { gap: 1px; }
+.stcal-grid-mini .stcal-weekday { font-size: .5em; padding: 5px 0; }
+.stcal-shell .stcal-grid-mini .stcal-day { min-height: 26px; padding: 3px 0; gap: 2px; font-size: .62em; border-radius: 5px; }
+.stcal-grid-mini .stcal-dot { width: 3px; height: 3px; }
+.stcal-field { display: flex; flex-direction: column; align-items: stretch; gap: 7px; min-width: 0; }
+.stcal-label { font-size: .85em; }
+.stcal-shell .stcal-input { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--stcal-border); border-radius: 9px; color: var(--stcal-fg); background: var(--stcal-bg); font: inherit; font-size: .86em; }
+.stcal-shell select.stcal-input { min-height: 42px; }
+.stcal-shell textarea.stcal-input { resize: vertical; min-height: 100px; line-height: 1.6; }
+.stcal-shell input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--stcal-accent); }
+.stcal-shell .stcal-input:focus-within { border-color: var(--stcal-accent); }
+.stcal-details { border-top: 1px solid var(--stcal-border); padding-top: 12px; }
+.stcal-details summary { cursor: pointer; padding: 5px 0 12px; font-size: .85em; }
+.stcal-details textarea { margin-bottom: 8px; }
+.stcal-error { color: #e49696; font-size: .82em; }
+.stcal-memory { white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: auto; padding: 14px; margin: 0; border-radius: 10px; background: var(--stcal-bg); font-size: .8em; line-height: 1.6; user-select: text; }
+.stcal-status { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px; border-top: 1px solid var(--stcal-border); font-size: .74em; color: var(--stcal-muted); overflow-wrap: anywhere; }
+.stcal-status.stcal-working { color: var(--stcal-accent); }
+#stcal-fab { position: fixed; right: 18px; bottom: 84px; display: grid; place-items: center; width: 46px; height: 46px; padding: 10px; border-radius: 15px; background: var(--stcal-bg); border: 1px solid var(--stcal-border); box-shadow: 0 5px 24px #0004; z-index: 100; }
+#stcal-fab .stcal-icon { width: 24px; height: 24px; }
+#extensionsMenu > #stcal-wand { align-items: center; }
+#stcal-wand .extensionsMenuExtensionButton { display: inline-flex; align-items: center; justify-content: center; }
+.stcal-settings-entry { padding: 8px 0; }
+@media (max-width: 600px) {
+    .stcal-header { padding: 16px 14px 12px; }
+    .stcal-tabs { margin: 0 12px 12px; }
+    .stcal-tabs .stcal-btn { gap: 5px; padding: 8px 5px; font-size: .76em; }
+    .stcal-tabs .stcal-icon { width: 16px; height: 16px; }
+    .stcal-body { padding: 0 12px 16px; gap: 12px; }
+    .stcal-brand .stcal-eyebrow { font-size: .65em; }
+    .stcal-status { padding: 10px 14px; }
+    .stcal-year-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stcal-shell.stcal-floating { right: 12px; bottom: 78px; }
+    .stcal-card { padding: 12px; }
+    .stcal-event-actions { max-width: 72px; }
+    .stcal-grid { gap: 2px; }
+    .stcal-shell .stcal-day { min-height: 48px; }
+    .stcal-shell .stcal-grid-mini .stcal-day { min-height: 27px; }
+}
+@media (pointer: coarse) {
+    .stcal-shell .stcal-icon-btn { min-height: 42px; width: 42px; }
+    .stcal-event-actions { max-width: 84px; }
+    .stcal-shell .stcal-btn:not(.stcal-day) { min-height: 42px; }
+}
+@media (prefers-reduced-motion: reduce) { .stcal-btn { transition: none; } }

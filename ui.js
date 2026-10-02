@@ -310,9 +310,9 @@ export function mountUi(api) {
     function renderSettings() {
         const settings = api.settings;
         const ai = card('Модель-календарист');
-        const options = [['', 'Текущее подключение чата'], ...api.profiles().map(p => [p.id, `${p.name || p.id}${p.supported ? '' : ' · несовместим'}`, !p.supported])];
+        const options = [['', 'Активный профиль Connection Manager'], ...api.profiles().map(p => [p.id, `${p.name || p.id}${p.supported ? '' : ' · несовместим'}`, !p.supported])];
         if (settings.profileId && !options.some(([id]) => id === settings.profileId)) options.push([settings.profileId, 'Профиль удалён — выбери другой', true]);
-        control(ai, 'profileId', 'Профиль подключения', options, 'Из API Connections. Модель РП не переключается.');
+        control(ai, 'profileId', 'Профиль подключения', options, 'Сохранённый профиль API Connections. Отдельный запрос, без переключения модели РП.');
         control(ai, 'autoScan', 'Автоматически проверять сюжет');
         control(ai, 'interval', 'Интервал проверки', { min: 2, max: 100 }, '2 сообщения = пользователь + персонаж. После готового ответа.');
         control(ai, 'historyCount', 'Сообщений контекста', { min: 2, max: 100 });
@@ -333,7 +333,7 @@ export function mountUi(api) {
             if (fallback) details.append(button('Вернуть стандартный промпт', () => { settings[key] = ''; el.value = fallback; api.saveSettings(); }));
             prompts.append(details);
         }
-        prompts.append(hint('Промпты и дополнительный сеттинг общие. Дата, страна, события и история проверок — отдельные для каждого чата. При изменении промптов сохраняй JSON-контракт.'));
+        prompts.append(hint('Стандартные промпты на английском, названия и пометки — на языке РП. Промпты и дополнительный сеттинг общие. Данные календаря отдельные для каждого чата. При изменении промптов сохраняй JSON-контракт.'));
         body.append(prompts);
         const data = card('Данные этого чата');
         const tools = node('div', 'stcal-toolbar');

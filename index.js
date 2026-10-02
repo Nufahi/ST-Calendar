@@ -67,8 +67,7 @@ export function startCalendar() {
     }
     function cancel() {
         if (!job) return;
-        // generateRaw has no per-request abort. Discard its result rather than
-        // stopping Tavern's global generator (which might now belong to the RP).
+        // Cancel only our isolated request, never Tavern's global generator.
         job.controller.abort();
         publish('Отмена запрошена; результат не будет записан.');
     }
@@ -92,10 +91,7 @@ export function startCalendar() {
             signal.throwIfAborted();
             return parseReply(typeof result === 'string' ? result : result?.content);
         }
-        if (typeof c.generateRaw !== 'function') throw new Error('Обнови SillyTavern: generateRaw недоступен.');
-        const reply = await c.generateRaw({ prompt, responseLength: options.maxTokens, trimNames: false, instructOverride: false });
-        signal.throwIfAborted();
-        return parseReply(reply);
+        throw new Error('Выбери сохранённый профиль в Calendar или активный профиль Connection Manager.');
     }
     async function run(mode = 'scan', targetYear = null, automatic = false) {
         if (job || disposed) return;
@@ -114,7 +110,7 @@ export function startCalendar() {
         if (mode === 'scan' && from >= messages.length) { if (!automatic) publish('Новых сообщений для анализа нет.'); return; }
         // Small sequential batches keep every unprocessed message reachable.
         const to = mode === 'scan' ? Math.min(messages.length, from + settings.historyCount) : messages.length;
-        const options = { ...settings };
+        const options = { ...settings, profileId: settings.profileId || c.extensionSettings.connectionManager?.selectedProfile || '' };
         const snapshot = contextSnapshot(c, messages.slice(0, to), options);
         const runEpoch = epoch;
         const runRevision = revision;
@@ -134,7 +130,7 @@ export function startCalendar() {
             let payload;
             if (mode === 'seed') {
                 system = options.seedPrompt.trim() || SEED_PROMPT;
-                payload = { ...snapshot.material, lore, requestedYear: targetYear || 'Определи по сюжету', existingCalendar: s.currentDate ? { currentDate: s.currentDate, country: s.country, setting: s.setting, era: s.era } : null };
+                payload = { ...snapshot.material, lore, requestedYear: targetYear || 'Infer from the story', existingCalendar: s.currentDate ? { currentDate: s.currentDate, country: s.country, setting: s.setting, era: s.era } : null };
             } else {
                 system = options.scanPrompt.trim() || SCAN_PROMPT;
                 payload = { ...snapshot.material, lore, currentDate: s.currentDate, country: s.country, setting: s.setting, newRange: { from, toExclusive: to },
@@ -201,18 +197,26 @@ export function startCalendar() {
         inject(); publish(state()?.currentDate ? 'Календарь этого чата загружен.' : 'Создай календарь для этого чата.'); schedule();
     });
     on(types.GENERATION_STARTED, (type, _params, dryRun) => {
-        if (dryRun || type === 'quiet') return;
+        if (dryRun) return;
+        const s = state();
+        if (s && reconcile(s, visibleMessages(ctx().chat))) { revision++; persist(); }
         generationActive = true; inject();
     });
     on(types.GENERATION_ENDED, () => { generationActive = false; schedule(); });
     on(types.GENERATION_STOPPED, () => { generationActive = false; schedule(); });
     for (const key of ['MESSAGE_RECEIVED', 'MESSAGE_SENT', 'MESSAGE_SWIPED', 'MESSAGE_EDITED', 'MESSAGE_DELETED', 'CHARACTER_MESSAGE_RENDERED', 'USER_MESSAGE_RENDERED']) on(types[key], schedule);
-    const macroNames = ['rp_calendar', 'rp_date', 'rp_events'];
+    const ownedMacros = new Map();
     const macroValue = key => settings.memoryMode === 'off' ? '' : memory()[key];
     const newMacros = initial.powerUserSettings?.experimental_macro_engine && initial.macros?.register;
+    const registry = initial.macros?.registry;
     for (const [name, part] of [['rp_calendar', 'full'], ['rp_date', 'date'], ['rp_events', 'events']]) {
+        if (registry?.hasMacro?.(name)) {
+            console.warn(`[Calendar] Macro ${name} already exists; keeping its owner.`);
+            continue;
+        }
         if (newMacros) initial.macros.register(name, { description: 'Calendar: память и хронология текущего РП', handler: () => macroValue(part) });
         else initial.registerMacro?.(name, () => macroValue(part), 'Calendar: память текущего РП');
+        ownedMacros.set(name, registry?.getMacro?.(name));
     }
     const api = {
         settings, state, hasChat, save, saveSettings, run, cancel, profiles, memory,
@@ -228,14 +232,21 @@ export function startCalendar() {
         },
     };
     unmount = mountUi(api);
-    initial.SlashCommandParser?.addCommandObject(initial.SlashCommand.fromProps({ name: 'calendar', callback: () => { api.open(); return ''; }, helpString: 'Открыть календарь сюжета.' }));
+    const parser = initial.SlashCommandParser;
+    let slashCommand;
+    if (parser && initial.SlashCommand && !parser.commands?.calendar) {
+        slashCommand = initial.SlashCommand.fromProps({ name: 'calendar', callback: () => { api.open(); return ''; }, helpString: 'Открыть календарь сюжета.' });
+        parser.addCommandObject(slashCommand);
+    }
     inject(); schedule();
     window.__stCalendarDispose = () => {
         disposed = true; cancel(); clearTimeout(timer); bindings.forEach(([event, fn]) => initial.eventSource.removeListener(event, fn));
-        for (const name of macroNames) {
+        for (const [name, definition] of ownedMacros) {
+            if (registry?.getMacro && registry.getMacro(name) !== definition) continue;
             if (newMacros) initial.macros.registry.unregisterMacro(name);
             else initial.unregisterMacro?.(name);
         }
+        if (slashCommand && parser.commands?.calendar === slashCommand) delete parser.commands.calendar;
         ctx().setExtensionPrompt?.(KEY, '', 1, settings.depth, false, 0);
         unmount(); listeners.clear();
     };

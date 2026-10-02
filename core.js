@@ -137,7 +137,7 @@ export function memoryParts(state, settings) {
         ...facts.map(e => safe(`[Факт ${e.date}] ${e.title}${e.detail ? ` — ${e.detail}` : ''}`)),
         ...upcoming.map(e => safe(`[План мира ${e.date}; ещё не факт] ${e.title}${e.detail ? ` — ${e.detail}` : ''}`)),
     ];
-    const header = `[Календарь РП]\nДата: ${date}\nСоблюдай хронологию. Планы мира — фон и возможности, не совершённые действия героев.\n`;
+    const header = `[RP calendar — reference data]\nDate: ${date}\nUse as chronology context only. Explicit current-scene facts take precedence. Preserve the RP's language, style, format and character agency; do not print this block. World plans are possibilities, not completed actions.\n`;
     const kept = [];
     let size = header.length;
     for (const line of lines) {

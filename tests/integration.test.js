@@ -5,7 +5,7 @@ import { Window } from 'happy-dom';
 import { startCalendar } from '../index.js';
 import { KEY, emptyState, messageHash } from '../core.js';
 
-function setup() {
+function setup(configure = () => {}) {
     const window = new Window();
     Object.assign(globalThis, { window, document: window.document, MutationObserver: window.MutationObserver });
     document.body.innerHTML = '<div id="extensionsMenu"></div><div id="extensions_settings2"></div>';
@@ -24,6 +24,7 @@ function setup() {
         registerMacro(name, callback) { macros.set(name, callback); }, unregisterMacro(name) { macros.delete(name); },
         eventSource, eventTypes,
     };
+    configure(context, macros);
     globalThis.SillyTavern = { getContext: () => context };
     const api = startCalendar();
     return { api, context, macros, async cleanup() { window.__stCalendarDispose(); await window.happyDOM.close(); } };
@@ -104,5 +105,86 @@ test('successful scan stores concise event and auto mode waits for character com
         assert.equal(context.chatMetadata[KEY].events.length, 1);
         assert.equal(context.chatMetadata[KEY].processed.length, 3);
         assert.equal(context.chatMetadata[KEY].currentDate, '2040-01-02');
+    } finally { await env.cleanup(); }
+});
+
+test('active profile fallback isolates requests, cancellation and other extension state', async () => {
+    const prompts = new Map([['OtherExtension', 'Keep this memory']]);
+    const env = setup(context => {
+        context.extensionSettings[KEY].profileId = '';
+        context.extensionSettings.connectionManager.selectedProfile = 'analyst';
+        context.chatMetadata.OtherExtension = { notes: ['untouched'] };
+        context.setExtensionPrompt = (key, text) => prompts.set(key, text);
+        context.generateRaw = () => { throw new Error('Global generator must not be used'); };
+    });
+    try {
+        const { api, context } = env;
+        const chat = structuredClone(context.chat);
+        const profiles = structuredClone(context.extensionSettings.connectionManager);
+        let signal;
+        context.ConnectionManagerRequestService.sendRequest = (_profile, messages, _tokens, options) => {
+            assert.equal(messages.length, 2);
+            assert.match(messages[0].content, /language of the ongoing roleplay/);
+            signal = options.signal;
+            return new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason)));
+        };
+        const pending = api.run('seed'); await tick();
+        api.cancel(); await pending;
+        assert.equal(signal.aborted, true);
+        assert.equal(context.chatMetadata[KEY].currentDate, '');
+        assert.deepEqual(context.chat, chat);
+        assert.deepEqual(context.extensionSettings.connectionManager, profiles);
+        assert.deepEqual(context.chatMetadata.OtherExtension, { notes: ['untouched'] });
+        assert.equal(prompts.get('OtherExtension'), 'Keep this memory');
+        context.extensionSettings.connectionManager.selectedProfile = null;
+        await api.run('seed');
+        assert.match(api.status, /Выбери сохранённый профиль/);
+    } finally { await env.cleanup(); }
+    assert.equal(prompts.get('OtherExtension'), 'Keep this memory');
+});
+
+test('experimental macros keep other owners and cleanup only owned definitions', async () => {
+    const registry = new Map([['rp_date', { handler: () => 'Other date' }]]);
+    const env = setup(context => {
+        context.powerUserSettings = { experimental_macro_engine: true };
+        context.macros = {
+            register: (name, definition) => registry.set(name, definition),
+            registry: { hasMacro: name => registry.has(name), getMacro: name => registry.get(name), unregisterMacro: name => registry.delete(name) },
+        };
+    });
+    try {
+        const { api, context } = env;
+        ready(context);
+        api.settings.memoryMode = 'macro'; api.saveSettings();
+        assert.equal(context.prompt, '');
+        assert.match(registry.get('rp_calendar').handler(), /2040-01-01/);
+        assert.equal(registry.get('rp_date').handler(), 'Other date');
+        api.settings.enabled = false; api.saveSettings();
+        assert.equal(registry.get('rp_calendar').handler(), '');
+        registry.set('rp_events', { handler: () => 'Later owner' });
+    } finally { await env.cleanup(); }
+    assert.equal(registry.has('rp_calendar'), false);
+    assert.equal(registry.get('rp_date').handler(), 'Other date');
+    assert.equal(registry.get('rp_events').handler(), 'Later owner');
+});
+
+test('edits are reconciled before the next prompt and quiet generation blocks analysis', async () => {
+    const env = setup();
+    try {
+        const { api, context } = env; ready(context);
+        let calls = 0;
+        context.ConnectionManagerRequestService.sendRequest = async () => {
+            calls++;
+            return { content: JSON.stringify({ currentDate: '2040-01-01', events: [{ date: '2040-01-01', title: 'Союз заключён', importance: 'high', evidenceMessage: 2 }] }) };
+        };
+        await api.run('scan');
+        assert.match(context.prompt, /Союз заключён/);
+        context.chat[2].mes = 'Союз отвергнут';
+        context.eventSource.emit('GENERATION_STARTED', 'quiet', {}, false);
+        assert.doesNotMatch(context.prompt, /Союз заключён/);
+        await api.run('scan');
+        assert.equal(calls, 1);
+        context.eventSource.emit('GENERATION_ENDED');
+        assert.equal(context.chatMetadata[KEY].processed.length, 1);
     } finally { await env.cleanup(); }
 });

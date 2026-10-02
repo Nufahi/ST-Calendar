@@ -43,40 +43,41 @@
     max-height: calc(100dvh - 115px);
     z-index: 3100; /* Above chat/drawers, below native modal top layer. */
 }
-.stcal-shell *, .stcal-shell *::before, .stcal-shell *::after { box-sizing: border-box; }
-.stcal-shell [hidden], #stcal-fab[hidden], #extensionsMenu > #stcal-wand[hidden] { display: none; }
+:is(.stcal-shell, .stcal-settings-entry) *, .stcal-shell *::before, .stcal-shell *::after { box-sizing: border-box; }
+.stcal-shell [hidden], #stcal-settings [hidden], #stcal-fab[hidden], #extensionsMenu > #stcal-wand[hidden] { display: none; }
 .stcal-shell h2, .stcal-shell h3, .stcal-shell p { margin: 0; }
 .stcal-shell h2 { font-size: 1.35em; font-weight: 600; letter-spacing: -.035em; }
 .stcal-shell h3 { font-size: .98em; font-weight: 600; }
 .stcal-icon { display: block; width: 20px; height: 20px; flex: 0 0 auto; pointer-events: none; }
-.stcal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 22px 24px 16px; }
+.stcal-header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px 12px; }
 .stcal-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .stcal-brand > div { min-width: 0; }
 .stcal-mark { display: grid; place-items: center; width: 44px; height: 48px; border-radius: 12px; border: 1px solid var(--stcal-border); background: var(--stcal-soft); }
 .stcal-mark .stcal-icon { width: 27px; height: 27px; }
 .stcal-eyebrow { font-size: .72em; letter-spacing: .03em; line-height: 1.5; color: var(--stcal-muted); }
-.stcal-tabs { display: flex; gap: 4px; padding: 4px; margin: 0 24px 16px; background: var(--stcal-soft); border: 1px solid var(--stcal-border); border-radius: 99px; }
+.stcal-tabs { display: flex; flex: 0 0 auto; gap: 4px; padding: 4px; margin: 0 18px 12px; background: var(--stcal-soft); border: 1px solid var(--stcal-border); border-radius: 99px; }
 .stcal-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;
     min-width: 0; min-height: 36px; padding: 8px 12px;
     border: 1px solid var(--stcal-border); border-radius: 10px;
     color: inherit; background: transparent; font: inherit; font-size: .85em; line-height: 1.25;
-    cursor: pointer; text-align: center; overflow-wrap: anywhere;
+    cursor: pointer; text-align: center; white-space: normal; word-break: normal; overflow-wrap: break-word;
     transition: background .15s ease, border-color .15s ease;
 }
 .stcal-shell .stcal-btn:hover, .stcal-settings-entry .stcal-btn:hover { background: var(--stcal-soft); border-color: var(--stcal-accent); }
 .stcal-shell .stcal-btn:disabled { cursor: wait; opacity: .45; }
-.stcal-shell :is(button, input, select, textarea, summary):focus-visible, #stcal-fab:focus-visible, #stcal-wand:focus-visible, .stcal-settings-entry button:focus-visible { outline: 2px solid var(--stcal-accent, var(--SmartThemeQuoteColor, #d2b791)); outline-offset: 3px; }
+.stcal-shell :is(button, input, select, textarea, summary):focus-visible, #stcal-fab:focus-visible, #stcal-wand:focus-visible, .stcal-settings-entry :is(button, input, select, [role="button"]):focus-visible { outline: 2px solid var(--stcal-accent, var(--SmartThemeQuoteColor, #d2b791)); outline-offset: 3px; }
 .stcal-shell .stcal-primary { color: var(--stcal-accent); background: var(--stcal-soft); border-color: var(--stcal-accent); }
 .stcal-shell .stcal-icon-btn { padding: 8px; width: 36px; flex: 0 0 auto; border-color: transparent; }
 .stcal-tabs .stcal-btn { flex: 1 1 0; border-radius: 99px; border-color: transparent; }
 .stcal-tabs .stcal-btn[aria-current="true"] { background: var(--stcal-bg); border-color: var(--stcal-border); color: var(--stcal-accent); box-shadow: 0 2px 8px #0001; }
-.stcal-body { display: flex; flex-direction: column; gap: 16px; min-height: 0; padding: 0 24px 24px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-.stcal-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--stcal-border); border-radius: 15px; background: var(--stcal-soft); }
-.stcal-empty { align-items: center; text-align: center; padding: 32px 24px; gap: 20px; }
+.stcal-body { display: flex; flex-direction: column; gap: 12px; min-height: 0; padding: 0 18px 16px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.stcal-body > * { flex-shrink: 0; min-width: 0; }
+.stcal-card { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--stcal-border); border-radius: 15px; background: var(--stcal-soft); }
+.stcal-empty { align-items: center; text-align: center; padding: 24px 16px; gap: 14px; }
 .stcal-empty > .stcal-icon { width: 54px; height: 54px; color: var(--stcal-accent); }
-.stcal-shell .stcal-hint { color: var(--stcal-muted); font-size: .8em; line-height: 1.6; overflow-wrap: anywhere; }
-.stcal-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border: 1px solid var(--stcal-border); border-radius: 15px; background: var(--stcal-soft); }
+:is(.stcal-shell, .stcal-settings-entry) .stcal-hint { margin: 0; color: var(--stcal-muted); font-size: .8em; line-height: 1.4; white-space: normal; word-break: normal; overflow-wrap: anywhere; }
+.stcal-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--stcal-border); border-radius: 15px; background: var(--stcal-soft); }
 .stcal-hero > div { min-width: 0; }
 .stcal-date-title { font-variant-numeric: tabular-nums; font-size: 2em; letter-spacing: -.04em; line-height: 1.3; }
 .stcal-place { margin-top: 4px; font-size: .85em; color: var(--stcal-accent); overflow-wrap: anywhere; }
@@ -101,7 +102,7 @@
 .stcal-event-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
 .stcal-event-copy strong { font-weight: 600; font-size: .92em; }
 .stcal-event-copy p { font-size: .82em; line-height: 1.5; color: var(--stcal-muted); }
-.stcal-event-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; max-width: 108px; }
+.stcal-event-actions { display: flex; flex: 0 0 auto; justify-content: flex-end; }
 .stcal-event-actions [aria-pressed="true"] { color: var(--stcal-accent); background: var(--stcal-soft); }
 .stcal-year-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .stcal-mini { min-width: 0; padding: 7px; border: 1px solid var(--stcal-border); border-radius: 12px; }
@@ -110,44 +111,73 @@
 .stcal-grid-mini .stcal-weekday { font-size: .5em; padding: 5px 0; }
 .stcal-shell .stcal-grid-mini .stcal-day { min-height: 26px; padding: 3px 0; gap: 2px; font-size: .62em; border-radius: 5px; }
 .stcal-grid-mini .stcal-dot { width: 3px; height: 3px; }
-.stcal-field { display: flex; flex-direction: column; align-items: stretch; gap: 7px; min-width: 0; }
-.stcal-label { font-size: .85em; }
-.stcal-shell .stcal-input { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--stcal-border); border-radius: 9px; color: var(--stcal-fg); background: var(--stcal-bg); font: inherit; font-size: .86em; }
-.stcal-shell select.stcal-input { min-height: 42px; }
+.stcal-field { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; margin: 0; }
+.stcal-field-copy { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; gap: 3px; }
+.stcal-label { font-size: .88em; line-height: 1.35; white-space: normal; word-break: normal; overflow-wrap: anywhere; }
+:is(.stcal-shell, .stcal-settings-entry) .stcal-input { box-sizing: border-box; width: 100%; min-width: 0; margin: 0; padding: 8px 10px; border: 1px solid var(--stcal-border); border-radius: 9px; color: var(--stcal-fg); background: var(--stcal-bg); font: inherit; font-size: .9em; }
+:is(.stcal-shell, .stcal-settings-entry) select.stcal-input { min-height: 40px; text-overflow: ellipsis; }
 .stcal-shell textarea.stcal-input { resize: vertical; min-height: 100px; line-height: 1.6; }
-.stcal-shell input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--stcal-accent); }
-.stcal-shell .stcal-input:focus-within { border-color: var(--stcal-accent); }
+.stcal-toggle, .stcal-number-field { flex-direction: row; align-items: center; gap: 12px; }
+.stcal-toggle { padding: 10px 12px; border: 1px solid var(--stcal-border); border-radius: 10px; cursor: pointer; }
+.stcal-toggle.stcal-checked { border-color: var(--stcal-accent); background: var(--stcal-soft); }
+:is(.stcal-shell, .stcal-settings-entry) .stcal-toggle input[type="checkbox"] { appearance: auto; flex: 0 0 20px; width: 20px; height: 20px; padding: 0; margin: 0; accent-color: var(--stcal-accent); cursor: pointer; }
+.stcal-shell .stcal-number-field > .stcal-input { flex: 0 0 100px; width: 100px; text-align: center; }
+:is(.stcal-shell, .stcal-settings-entry) .stcal-input:focus-within { border-color: var(--stcal-accent); }
+.stcal-toggle:focus-within { outline: 1px solid var(--stcal-accent); outline-offset: 2px; }
 .stcal-details { border-top: 1px solid var(--stcal-border); padding-top: 12px; }
 .stcal-details summary { cursor: pointer; padding: 5px 0 12px; font-size: .85em; }
 .stcal-details textarea { margin-bottom: 8px; }
 .stcal-error { color: #e49696; font-size: .82em; }
+.stcal-error:empty { display: none; }
 .stcal-memory { white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: auto; padding: 14px; margin: 0; border-radius: 10px; background: var(--stcal-bg); font-size: .8em; line-height: 1.6; user-select: text; }
-.stcal-status { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px; border-top: 1px solid var(--stcal-border); font-size: .74em; color: var(--stcal-muted); overflow-wrap: anywhere; }
+.stcal-status { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--stcal-border); font-size: .78em; line-height: 1.4; color: var(--stcal-muted); overflow-wrap: anywhere; }
+.stcal-status > span { min-width: 0; }
+.stcal-status > button { flex-shrink: 0; }
 .stcal-status.stcal-working { color: var(--stcal-accent); }
 #stcal-fab { position: fixed; right: 18px; bottom: 84px; display: grid; place-items: center; width: 46px; height: 46px; padding: 10px; border-radius: 15px; background: var(--stcal-bg); border: 1px solid var(--stcal-border); box-shadow: 0 5px 24px #0004; z-index: 100; }
 #stcal-fab .stcal-icon { width: 24px; height: 24px; }
 #extensionsMenu > #stcal-wand { align-items: center; }
 #stcal-wand .extensionsMenuExtensionButton { display: inline-flex; align-items: center; justify-content: center; }
-.stcal-settings-entry { padding: 8px 0; }
+.stcal-settings-entry { min-width: 0; }
+.stcal-settings-title { display: flex; flex: 1 1 0; align-items: center; gap: 8px; min-width: 0; }
+.stcal-settings-title > span { min-width: 0; overflow-wrap: anywhere; }
+#stcal-settings .inline-drawer-header { gap: 10px; cursor: pointer; }
+.stcal-settings-chevron { display: flex; flex: 0 0 auto; align-self: center; }
+#stcal-settings [aria-expanded="true"] .stcal-settings-chevron { transform: rotate(90deg); }
+#stcal-settings .inline-drawer-content:not([hidden]) { display: block; }
+.stcal-settings-card { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; padding: 12px; border: 1px solid var(--stcal-border); border-radius: 14px; background: var(--stcal-soft); }
+.stcal-settings-card > .stcal-field { padding: 10px; border: 1px solid var(--stcal-border); border-radius: 10px; }
+.stcal-settings-card .stcal-toolbar > button { flex: 1 1 140px; }
 @media (max-width: 600px) {
     .stcal-header { padding: 16px 14px 12px; }
     .stcal-tabs { margin: 0 12px 12px; }
-    .stcal-tabs .stcal-btn { gap: 5px; padding: 8px 5px; font-size: .76em; }
+    .stcal-tabs .stcal-btn { gap: 4px; padding: 8px 3px; font-size: .8em; }
     .stcal-tabs .stcal-icon { width: 16px; height: 16px; }
     .stcal-body { padding: 0 12px 16px; gap: 12px; }
     .stcal-brand .stcal-eyebrow { font-size: .65em; }
     .stcal-status { padding: 10px 14px; }
     .stcal-year-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .stcal-shell.stcal-floating { right: 12px; bottom: 78px; }
+    .stcal-shell { width: calc(100vw - 16px); max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); border-radius: 16px; }
+    .stcal-shell.stcal-floating { right: 8px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: calc(100vw - 16px); max-height: calc(100vh - 92px); max-height: calc(100dvh - 92px - env(safe-area-inset-bottom, 0px)); }
+    #stcal-fab { right: 12px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
     .stcal-card { padding: 12px; }
-    .stcal-event-actions { max-width: 72px; }
+    .stcal-event { display: grid; grid-template-columns: 5px minmax(0, 1fr); gap: 8px; }
+    .stcal-event-actions { grid-column: 2; justify-content: flex-start; gap: 4px; }
+    .stcal-toolbar > .stcal-btn { flex: 1 1 130px; }
+    :is(.stcal-shell, .stcal-settings-entry) .stcal-input { font-size: max(16px, .95em); }
     .stcal-grid { gap: 2px; }
     .stcal-shell .stcal-day { min-height: 48px; }
     .stcal-shell .stcal-grid-mini .stcal-day { min-height: 27px; }
 }
 @media (pointer: coarse) {
-    .stcal-shell .stcal-icon-btn { min-height: 42px; width: 42px; }
-    .stcal-event-actions { max-width: 84px; }
-    .stcal-shell .stcal-btn:not(.stcal-day) { min-height: 42px; }
+    .stcal-shell .stcal-icon-btn { min-height: 44px; width: 44px; }
+    :is(.stcal-shell, .stcal-settings-entry) .stcal-btn:not(.stcal-day), .stcal-toggle { min-height: 44px; }
+    .stcal-year-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stcal-shell .stcal-grid-mini .stcal-day { min-height: 36px; }
+}
+@media (max-width: 380px) {
+    .stcal-year-grid { grid-template-columns: minmax(0, 1fr); }
+    .stcal-shell .stcal-grid-mini .stcal-day { min-height: 40px; font-size: .8em; }
+    .stcal-shell .stcal-number-field > .stcal-input { flex-basis: 82px; width: 82px; }
 }
 @media (prefers-reduced-motion: reduce) { .stcal-btn { transition: none; } }

@@ -32,8 +32,19 @@ function iconButton(label, action, glyph) {
     const b = button('', action, glyph, 'stcal-icon-btn'); b.title = label; b.setAttribute('aria-label', label); return b;
 }
 function field(label, control, help = '') {
-    const wrap = node('label', 'stcal-field'); wrap.append(node('span', 'stcal-label', label), control);
-    if (help) wrap.append(node('span', 'stcal-hint', help)); return wrap;
+    const toggle = control.type === 'checkbox';
+    const wrap = node('label', `stcal-field${toggle ? ' stcal-toggle' : control.type === 'number' ? ' stcal-number-field' : ''}`);
+    const text = node('span', 'stcal-field-copy'); text.append(node('span', 'stcal-label', label));
+    if (help) {
+        const description = node('span', 'stcal-hint', help); description.id = `stcal-help-${uid()}`;
+        control.setAttribute('aria-describedby', description.id); text.append(description);
+    }
+    wrap.append(text, control);
+    if (toggle) {
+        wrap.classList.toggle('stcal-checked', control.checked);
+        control.addEventListener('change', () => wrap.classList.toggle('stcal-checked', control.checked));
+    }
+    return wrap;
 }
 function input(value, type = 'text') { const el = node('input', 'stcal-input'); el.type = type; el.value = value; return el; }
 function select(value, options) {
@@ -94,7 +105,7 @@ export function mountUi(api) {
         status = node('div', 'stcal-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
         dialog.append(header, tabs, body, status);
         dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
-        dialog.addEventListener('keydown', event => { if (event.key === 'Escape' && api.settings.windowMode === 'floating') { event.preventDefault(); close(); } });
+        dialog.addEventListener('keydown', event => { if (event.key === 'Escape' && dialog.classList.contains('stcal-floating')) { event.preventDefault(); close(); } });
         document.body.append(dialog);
         render();
         if (api.settings.windowMode === 'popup') dialog.showModal(); else dialog.show();
@@ -283,38 +294,36 @@ export function mountUi(api) {
         for (const event of events) history.append(eventRow(event, true));
         body.append(history);
     }
+    function control(parent, key, label, options, help) {
+        const settings = api.settings;
+        let el;
+        if (Array.isArray(options)) el = select(settings[key], options);
+        else if (typeof settings[key] === 'boolean') { el = input('', 'checkbox'); el.checked = settings[key]; }
+        else { el = input(settings[key], typeof settings[key] === 'number' ? 'number' : 'text'); if (options) Object.assign(el, options); }
+        el.dataset.setting = key;
+        el.addEventListener('change', () => {
+            settings[key] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value;
+            api.saveSettings();
+            if (el.type === 'number') el.value = settings[key];
+        }); parent.append(field(label, el, help)); return el;
+    }
     function renderSettings() {
         const settings = api.settings;
-        function control(parent, key, label, options, help) {
-            let el;
-            if (Array.isArray(options)) el = select(settings[key], options);
-            else if (typeof settings[key] === 'boolean') { el = input('', 'checkbox'); el.checked = settings[key]; }
-            else { el = input(settings[key], typeof settings[key] === 'number' ? 'number' : 'text'); if (options) Object.assign(el, options); }
-            el.addEventListener('change', () => {
-                settings[key] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value;
-                api.saveSettings(); refreshEntrypoints();
-            }); parent.append(field(label, el, help)); return el;
-        }
-        const general = card('Внешний вид');
-        control(general, 'enabled', 'Календарь включён');
-        control(general, 'entry', 'Где находится кнопка', [['wand', 'В волшебной палочке'], ['floating', 'Плавающая кнопка'], ['both', 'И там, и там']]);
-        control(general, 'windowMode', 'Как открывать календарь', [['popup', 'Всплывающее окно'], ['floating', 'Плавающее окно рядом с чатом']], 'Новый режим применится при следующем открытии.');
-        body.append(general);
         const ai = card('Модель-календарист');
         const options = [['', 'Текущее подключение чата'], ...api.profiles().map(p => [p.id, `${p.name || p.id}${p.supported ? '' : ' · несовместим'}`, !p.supported])];
         if (settings.profileId && !options.some(([id]) => id === settings.profileId)) options.push([settings.profileId, 'Профиль удалён — выбери другой', true]);
-        control(ai, 'profileId', 'Профиль подключения', options, 'Сохранённый профиль из API Connections. Отдельная модель не переключает подключение РП. Список обновляется при открытии этой вкладки.');
+        control(ai, 'profileId', 'Профиль подключения', options, 'Из API Connections. Модель РП не переключается.');
         control(ai, 'autoScan', 'Автоматически проверять сюжет');
-        control(ai, 'interval', 'Через сколько новых сообщений', { min: 2, max: 100 }, '2 = сообщение пользователя + ответ персонажа. Проверка запускается после завершённого ответа.');
-        control(ai, 'historyCount', 'Сообщений контекста / размер пакета', { min: 2, max: 100 });
-        control(ai, 'maxTokens', 'Максимум токенов ответа анализатора', { min: 1024, max: 32768, step: 1024 }, 'Для календаря на 12 месяцев и думающих моделей удобно 8192–16384.');
+        control(ai, 'interval', 'Интервал проверки', { min: 2, max: 100 }, '2 сообщения = пользователь + персонаж. После готового ответа.');
+        control(ai, 'historyCount', 'Сообщений контекста', { min: 2, max: 100 });
+        control(ai, 'maxTokens', 'Токенов на ответ', { min: 1024, max: 32768, step: 1024 }, 'Для целого года: 8192–16384.');
         body.append(ai);
-        const memory = card('Память для модели, которая пишет РП');
+        const memory = card('Память для РП');
         control(memory, 'memoryMode', 'Отправлять память', [['auto', 'Автоматически в промпт'], ['macro', 'Только через мои макросы'], ['off', 'Не отправлять']]);
-        control(memory, 'memoryLimit', 'Лимит памяти, символов', { min: 500, max: 8000 });
-        control(memory, 'memoryCount', 'Максимум сюжетных пометок', { min: 1, max: 40 });
-        control(memory, 'upcomingDays', 'События мира на ближайшие N дней', { min: 0, max: 90 });
-        control(memory, 'depth', 'Глубина системной вставки в чат', { min: 0, max: 20 });
+        control(memory, 'memoryLimit', 'Лимит, символов', { min: 500, max: 8000 });
+        control(memory, 'memoryCount', 'Сюжетных пометок', { min: 1, max: 40 });
+        control(memory, 'upcomingDays', 'План на дней вперёд', { min: 0, max: 90 });
+        control(memory, 'depth', 'Глубина вставки', { min: 0, max: 20 });
         body.append(memory);
         const prompts = card('Сеттинг и промпты');
         for (const [key, label, fallback] of [['extraContext', 'Дополнительный сеттинг / правила мира', ''], ['seedPrompt', 'Промпт создания года', SEED_PROMPT], ['scanPrompt', 'Промпт важных событий', SCAN_PROMPT]]) {
@@ -355,18 +364,56 @@ export function mountUi(api) {
     function refreshEntrypoints() {
         if (wand) wand.hidden = api.settings.entry === 'floating';
         if (fab) fab.hidden = api.settings.entry === 'wand';
+        panel?.querySelectorAll('[data-setting]').forEach(el => {
+            if (el.type === 'checkbox') {
+                el.checked = api.settings[el.dataset.setting];
+                el.closest('.stcal-toggle').classList.toggle('stcal-checked', el.checked);
+            } else el.value = api.settings[el.dataset.setting];
+        });
+    }
+    function settingsPanel() {
+        const root = node('div', 'stcal-settings-entry'); root.id = 'stcal-settings';
+        // Same native Extensions drawer structure as LiteBranch.
+        const drawer = node('div', 'inline-drawer');
+        const header = node('div', 'inline-drawer-toggle inline-drawer-header');
+        header.tabIndex = 0; header.setAttribute('role', 'button');
+        const title = node('b', 'stcal-settings-title'); title.append(icon('calendar'), node('span', '', 'Calendar · Календарь'));
+        const chevron = node('span', 'stcal-settings-chevron'); chevron.append(icon('right'));
+        header.append(title, chevron);
+        const content = node('div', 'inline-drawer-content'); content.id = 'stcal-settings-content'; content.hidden = true;
+        header.setAttribute('aria-controls', content.id); header.setAttribute('aria-expanded', 'false');
+        // Own the toggle so keyboard and SVG state follow the same path; avoid
+        // a second toggle from Tavern's delegated inline-drawer click handler.
+        header.addEventListener('click', event => {
+            event.stopPropagation();
+            const expanded = header.getAttribute('aria-expanded') !== 'true';
+            header.setAttribute('aria-expanded', String(expanded)); content.hidden = !expanded;
+        });
+        header.addEventListener('keydown', event => {
+            if (['Enter', ' '].includes(event.key)) { event.preventDefault(); header.click(); }
+        });
+        const card = node('div', 'stcal-settings-card');
+        card.append(hint('Время мира, важные события и короткая память истории.'));
+        control(card, 'enabled', 'Календарь включён', null, 'Анализ сюжета и память для модели.');
+        control(card, 'entry', 'Где показывать кнопку', [['wand', 'В волшебной палочке'], ['floating', 'Плавающая кнопка'], ['both', 'И там, и там']]);
+        control(card, 'windowMode', 'Окно календаря', [['popup', 'Всплывающее'], ['floating', 'Плавающее рядом с чатом']], 'Применится при следующем открытии.');
+        const actions = node('div', 'stcal-toolbar');
+        const openTab = target => { tab = target; editor = null; open(); render(); };
+        actions.append(button('Открыть календарь', () => openTab('calendar'), 'calendar'), button('Модель и память', () => openTab('settings'), 'settings'));
+        card.append(actions); content.append(card); drawer.append(header, content); root.append(drawer);
+        return root;
     }
     function installEntrypoints() {
         const menu = document.getElementById('extensionsMenu');
-        if (menu && !wand) {
+        if (menu && !wand?.isConnected) {
             wand = node('div', 'list-group-item flex-container flexGap5 interactable'); wand.id = 'stcal-wand'; wand.tabIndex = 0; wand.setAttribute('role', 'button');
             const glyph = node('span', 'extensionsMenuExtensionButton'); glyph.append(icon('calendar')); wand.append(glyph, node('span', '', 'Calendar · Календарь'));
             wand.addEventListener('click', () => { menu.style.display = 'none'; open(); });
             wand.addEventListener('keydown', e => { if (['Enter', ' '].includes(e.key)) { e.preventDefault(); wand.click(); } }); menu.append(wand);
         }
         const container = document.getElementById('extensions_settings2') || document.getElementById('extensions_settings');
-        if (container && !panel) {
-            panel = node('div', 'stcal-settings-entry'); panel.append(button('Calendar · Календарь сюжета', open, 'calendar')); container.append(panel);
+        if (container && !panel?.isConnected) {
+            panel = settingsPanel(); container.append(panel);
         }
         refreshEntrypoints();
     }

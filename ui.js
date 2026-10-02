@@ -386,9 +386,9 @@ export function mountUi(api) {
     function renderSettings() {
         const settings = api.settings;
         const ai = card('Модель-календарист');
-        const options = [['', 'Активный профиль Connection Manager'], ...api.profiles().map(p => [p.id, `${p.name || p.id}${p.supported ? '' : ' · несовместим'}`, !p.supported])];
+        const options = [['', 'По умолчанию · текущее подключение ST'], ...api.profiles().map(p => [p.id, `${p.name || p.id}${p.supported ? '' : ' · несовместим'}`, !p.supported])];
         if (settings.profileId && !options.some(([id]) => id === settings.profileId)) options.push([settings.profileId, 'Профиль удалён — выбери другой', true]);
-        control(ai, 'profileId', 'Профиль подключения', options, 'Сохранённый профиль API Connections. Отдельный запрос, без переключения модели РП.');
+        control(ai, 'profileId', 'Профиль подключения', options, 'По умолчанию: активный профиль Connection Manager, а без него — текущее Chat Completion подключение ST. Для другой модели выбери сохранённый профиль.');
         control(ai, 'autoScan', 'Автоматически проверять сюжет');
         control(ai, 'includeMoments', 'Сохранять памятные моменты', null, 'Встречи, подарки, прогулки — в календарь. В память РП идут только важные или закреплённые пометки.');
         control(ai, 'interval', 'Интервал проверки', { min: 2, max: 100 }, '2 сообщения = пользователь + персонаж. После готового ответа.');

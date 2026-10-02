@@ -91,7 +91,21 @@ export function startCalendar() {
             signal.throwIfAborted();
             return parseReply(typeof result === 'string' ? result : result?.content);
         }
-        throw new Error('Выбери сохранённый профиль в настройках календаря или активный профиль Connection Manager.');
+        // Use the isolated request service, never Tavern's global RP generator.
+        if (options.currentApi !== 'openai') throw new Error('Текущее подключение: выбери Chat Completion в ST или сохранённый профиль Chat/Text Completion в календаре.');
+        const service = c.ChatCompletionService;
+        if (!service?.presetToGeneratePayload || !service?.sendRequest) throw new Error('Для текущего подключения обнови SillyTavern или выбери сохранённый профиль в календаре.');
+        const current = options.currentSettings;
+        const source = current.chat_completion_source;
+        const model = current[`${source === 'makersuite' ? 'google' : source}_model`];
+        const payload = await service.presetToGeneratePayload({}, current, {
+            messages: prompt, model: model === 'OR_Website' ? null : model,
+            chat_completion_source: source, max_tokens: options.maxTokens, stream: false,
+        });
+        signal.throwIfAborted();
+        const result = await service.sendRequest(payload, true, signal);
+        signal.throwIfAborted();
+        return parseReply(typeof result === 'string' ? result : result?.content);
     }
     async function run(mode = 'scan', targetYear = null, automatic = false) {
         if (job || disposed) return;
@@ -110,7 +124,7 @@ export function startCalendar() {
         if (mode === 'scan' && from >= messages.length) { if (!automatic) publish('Новых сообщений для анализа нет.'); return; }
         // Small sequential batches keep every unprocessed message reachable.
         const to = mode === 'scan' ? Math.min(messages.length, from + settings.historyCount) : messages.length;
-        const options = { ...settings, profileId: settings.profileId || c.extensionSettings.connectionManager?.selectedProfile || '' };
+        const options = { ...settings, profileId: settings.profileId || c.extensionSettings.connectionManager?.selectedProfile || '', currentApi: c.mainApi, currentSettings: structuredClone(c.chatCompletionSettings || {}) };
         const snapshot = contextSnapshot(c, messages.slice(0, to), options);
         const runEpoch = epoch;
         const runRevision = revision;

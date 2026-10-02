@@ -187,9 +187,45 @@ test('active profile fallback isolates requests, cancellation and other extensio
         assert.equal(prompts.get('OtherExtension'), 'Keep this memory');
         context.extensionSettings.connectionManager.selectedProfile = null;
         await api.run('seed');
-        assert.match(api.status, /Выбери сохранённый профиль/);
+        assert.match(api.status, /Текущее подключение/);
     } finally { await env.cleanup(); }
     assert.equal(prompts.get('OtherExtension'), 'Keep this memory');
+});
+
+test('default connection works without a saved profile via isolated current CC request', async () => {
+    const env = setup(context => {
+        context.extensionSettings[KEY].profileId = '';
+        delete context.extensionSettings.connectionManager;
+        context.mainApi = 'openai';
+        context.chatCompletionSettings = { chat_completion_source: 'custom', custom_model: 'my-model', custom_url: 'https://example.invalid/v1' };
+        context.generateRaw = () => { throw new Error('Global generator must not be used'); };
+    });
+    try {
+        const { api, context } = env;
+        const before = structuredClone(context.chatCompletionSettings);
+        let sent = false;
+        context.ChatCompletionService = {
+            presetToGeneratePayload: async (_preset, settings, overrides) => {
+                assert.deepEqual(settings, before);
+                assert.notEqual(settings, context.chatCompletionSettings);
+                assert.equal(overrides.model, 'my-model');
+                assert.equal(overrides.messages.length, 2);
+                return { ...overrides, custom_url: settings.custom_url };
+            },
+            sendRequest: async (payload, extract, signal) => {
+                sent = true;
+                assert.equal(payload.custom_url, before.custom_url);
+                assert.equal(payload.stream, false);
+                assert.equal(extract, true);
+                assert.ok(signal instanceof AbortSignal);
+                return { content: JSON.stringify(yearReply()) };
+            },
+        };
+        await api.run('seed');
+        assert.equal(sent, true);
+        assert.ok(context.chatMetadata[KEY].currentDate);
+        assert.deepEqual(context.chatCompletionSettings, before);
+    } finally { await env.cleanup(); }
 });
 
 test('experimental macros keep other owners and cleanup only owned definitions', async () => {

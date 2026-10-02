@@ -33,7 +33,9 @@
     -webkit-backdrop-filter: blur(18px);
 }
 .stcal-shell[open] { display: flex; flex-direction: column; }
+.stcal-shell:popover-open { display: flex; flex-direction: column; }
 .stcal-shell::backdrop { background: #0007; }
+.stcal-shell[popover]::backdrop { background: transparent; pointer-events: none; }
 .stcal-shell.stcal-floating {
     position: fixed;
     inset: auto 18px 88px auto;
@@ -41,7 +43,6 @@
     width: min(520px, calc(100vw - 24px));
     max-height: calc(100vh - 115px);
     max-height: calc(100dvh - 115px);
-    z-index: 3100; /* Above chat/drawers, below native modal top layer. */
 }
 :is(.stcal-shell, .stcal-settings-entry) *, .stcal-shell *::before, .stcal-shell *::after { box-sizing: border-box; }
 .stcal-shell [hidden], #stcal-settings [hidden], #stcal-fab[hidden], #extensionsMenu > #stcal-wand[hidden] { display: none; }

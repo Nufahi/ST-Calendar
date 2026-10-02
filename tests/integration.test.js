@@ -36,6 +36,32 @@ function ready(context) {
 }
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 
+test('window mode changes in place and reopening recovers closed or detached shells', async () => {
+    const env = setup();
+    try {
+        const { api } = env;
+        api.open();
+        const shell = document.querySelector('.stcal-shell');
+        document.querySelector('[data-tab=settings]').click();
+        const draft = document.querySelector('.stcal-details textarea');
+        draft.value = 'Unsaved world context';
+        api.settings.windowMode = 'floating'; api.saveSettings();
+        assert.equal(shell.dataset.mode, 'floating');
+        assert.equal(document.querySelector('.stcal-shell'), shell);
+        assert.equal(draft.value, 'Unsaved world context');
+        api.settings.windowMode = 'popup'; api.saveSettings();
+        assert.equal(shell.dataset.mode, 'popup');
+        assert.equal(shell.open, true);
+        shell.close();
+        api.open();
+        assert.equal(document.querySelector('.stcal-shell').open, true);
+        document.querySelector('.stcal-shell').remove();
+        api.open();
+        assert.equal(document.querySelectorAll('.stcal-shell').length, 1);
+        assert.equal(document.querySelector('.stcal-shell').open, true);
+    } finally { await env.cleanup(); }
+});
+
 test('seed via separate profile, DOM rendering, macros and scoped entrypoints', async () => {
     const env = setup();
     try {

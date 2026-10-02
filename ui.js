@@ -79,11 +79,36 @@ export function mountUi(api) {
     }
     function close() {
         if (!dialog) return;
-        dialog.close(); dialog.remove(); dialog = null; body = null; editor = null;
+        const shell = dialog;
+        dialog = null; body = null; status = null; editor = null;
+        if (shell.open) shell.close();
+        if (shell.hasAttribute('popover') && shell.matches(':popover-open')) shell.hidePopover();
+        shell.remove();
         if (focusBefore?.isConnected) focusBefore.focus();
     }
+    function isShowing() {
+        return dialog?.isConnected && (dialog.open || (dialog.hasAttribute('popover') && dialog.matches(':popover-open')));
+    }
+    function present() {
+        const mode = api.settings.windowMode === 'floating' ? 'floating' : 'popup';
+        if (isShowing() && dialog.dataset.mode === mode) return;
+        if (dialog.open) dialog.close();
+        if (dialog.hasAttribute('popover') && dialog.matches(':popover-open')) dialog.hidePopover();
+        dialog.removeAttribute('popover');
+        dialog.classList.toggle('stcal-floating', mode === 'floating');
+        dialog.classList.toggle('stcal-popup', mode === 'popup');
+        dialog.dataset.mode = mode;
+        if (!dialog.isConnected) document.body.append(dialog);
+        // A modeless dialog sits inside Tavern's transformed html element.
+        // Its fixed mobile body can leave that containing block with zero height.
+        // A manual popover uses the viewport top layer without making chat inert.
+        if (mode === 'floating' && typeof dialog.showPopover === 'function') {
+            dialog.setAttribute('popover', 'manual');
+            dialog.showPopover();
+        } else dialog.showModal(); // Older browsers still get an accessible window.
+    }
     function open() {
-        if (dialog) { dialog.focus(); return; }
+        if (dialog) { present(); dialog.focus(); return; }
         focusBefore = document.activeElement;
         activeChat = context().getCurrentChatId?.();
         jump(api.state()?.currentDate);
@@ -106,9 +131,14 @@ export function mountUi(api) {
         dialog.append(header, tabs, body, status);
         dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
         dialog.addEventListener('keydown', event => { if (event.key === 'Escape' && dialog.classList.contains('stcal-floating')) { event.preventDefault(); close(); } });
+        const shell = dialog;
+        // Let a close→show transition finish before deciding the user dismissed it.
+        const dismissed = () => queueMicrotask(() => { if (dialog === shell && !isShowing()) close(); });
+        shell.addEventListener('close', dismissed);
+        shell.addEventListener('toggle', dismissed);
         document.body.append(dialog);
         render();
-        if (api.settings.windowMode === 'popup') dialog.showModal(); else dialog.show();
+        present();
         dialog.querySelector('button')?.focus();
     }
     api.open = open;
@@ -396,7 +426,7 @@ export function mountUi(api) {
         card.append(hint('Время мира, важные события и короткая память истории.'));
         control(card, 'enabled', 'Календарь включён', null, 'Анализ сюжета и память для модели.');
         control(card, 'entry', 'Где показывать кнопку', [['wand', 'В волшебной палочке'], ['floating', 'Плавающая кнопка'], ['both', 'И там, и там']]);
-        control(card, 'windowMode', 'Окно календаря', [['popup', 'Всплывающее'], ['floating', 'Плавающее рядом с чатом']], 'Применится при следующем открытии.');
+        control(card, 'windowMode', 'Окно календаря', [['popup', 'Всплывающее'], ['floating', 'Плавающее рядом с чатом']], 'Режим открытого окна меняется сразу.');
         const actions = node('div', 'stcal-toolbar');
         const openTab = target => { tab = target; editor = null; open(); render(); };
         actions.append(button('Открыть календарь', () => openTab('calendar'), 'calendar'), button('Модель и память', () => openTab('settings'), 'settings'));
@@ -423,6 +453,7 @@ export function mountUi(api) {
     const unsubscribe = api.subscribe(() => {
         refreshEntrypoints();
         if (dialog && activeChat !== context().getCurrentChatId?.()) { editor = null; selected = ''; close(); return; }
+        if (dialog && dialog.dataset.mode !== api.settings.windowMode) present();
         // Do not destroy partially typed settings/forms when a background job finishes.
         if (dialog && tab !== 'settings' && !editor) render(); else renderStatus();
     });

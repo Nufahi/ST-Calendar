@@ -104,6 +104,29 @@ test('late response cannot write into another chat', async () => {
         assert.equal(context.prompt, '');
     } finally { await env.cleanup(); }
 });
+
+test('scan shows SVG moments, manual symbol selection persists and pinning opts into memory', async () => {
+    const env = setup();
+    try {
+        const { api, context } = env; ready(context);
+        context.ConnectionManagerRequestService.sendRequest = async (_id, messages) => {
+            assert.equal(JSON.parse(messages[1].content).includeMoments, true);
+            return { content: JSON.stringify({ currentDate: '2040-01-01', events: [{ date: '2040-01-01', title: 'Встреча у реки', detail: 'Герои прогулялись вместе', importance: 'medium', symbol: 'heart', evidenceMessage: 2 }] }) };
+        };
+        await api.run('scan'); api.open();
+        assert.doesNotMatch(context.prompt, /Встреча у реки/);
+        assert.ok(document.querySelector('.stcal-day-symbols .stcal-symbol-heart svg'));
+        assert.match(document.querySelector('.stcal-event').textContent, /только календарь/);
+        document.querySelector('[aria-label="Редактировать пометку"]').click();
+        document.querySelector('[data-symbol="people"]').click();
+        document.querySelector('form').dispatchEvent(new window.Event('submit', { cancelable: true, bubbles: true }));
+        assert.equal(context.chatMetadata[KEY].events[0].symbol, 'people');
+        assert.equal(context.chatMetadata[KEY].events[0].importance, 'medium');
+        assert.doesNotMatch(context.prompt, /Встреча у реки/);
+        document.querySelector('[aria-label="Приоритет в памяти"]').click();
+        assert.match(context.prompt, /Встреча у реки/);
+    } finally { await env.cleanup(); }
+});
 test('editing source during an in-flight request discards the result', async () => {
     const env = setup();
     try {

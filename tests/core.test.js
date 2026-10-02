@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, emptyState, parseDate, dayNumber, weekday, parseReply, normalizeYear, normalizeScan, applyScan, reconcile, messageHash, memoryParts, importState } from '../core.js';
+import { DEFAULTS, emptyState, parseDate, dayNumber, weekday, parseReply, normalizeYear, normalizeScan, applyScan, reconcile, messageHash, memoryParts, importState, eventSymbol } from '../core.js';
 
 const message = (mes, is_user = false) => ({ mes, name: is_user ? 'User' : 'Character', is_user });
 const world = () => ({ ...emptyState(), currentDate: '2024-02-28', country: 'Франция' });
@@ -74,4 +74,36 @@ test('import detaches source history and validates types and dates', () => {
     assert.notEqual(imported.events[0].id, 'old');
     assert.deepEqual(imported.processed, []);
     assert.throws(() => importState({ ...raw, events: [{ ...raw.events[0], date: '2024-02-30' }] }));
+});
+
+test('moments stay out of memory across export/import unless pinned; symbols are allowlisted', () => {
+    const state = world();
+    const raw = { currentDate: state.currentDate, events: [
+        { ...fact(state.currentDate, 'Встреча на ярмарке'), importance: 'medium', symbol: 'people', evidenceMessage: 2 },
+        { ...fact(state.currentDate, 'Заключён союз'), importance: 'high', symbol: '<svg onload=alert(1)>', evidenceMessage: 3 },
+    ] };
+    const result = normalizeScan(raw, state, 2, 4);
+    assert.equal(result.events.length, 2);
+    assert.equal(result.events[0].symbol, 'people');
+    assert.equal(result.events[1].symbol, 'star');
+    assert.equal(eventSymbol({ kind: 'holiday', symbol: 'constructor' }), 'sun');
+    state.events = result.events;
+    const imported = importState(JSON.parse(JSON.stringify(state)));
+    assert.equal(imported.events[0].importance, 'medium');
+    assert.equal(imported.events[0].symbol, 'people');
+    assert.doesNotMatch(memoryParts(imported, DEFAULTS).full, /Встреча на ярмарке/);
+    assert.match(memoryParts(imported, DEFAULTS).full, /Заключён союз/);
+    imported.events[0].pinned = true;
+    assert.match(memoryParts(imported, DEFAULTS).full, /Встреча на ярмарке/);
+    assert.equal(normalizeScan(raw, state, 2, 4, false).events.length, 1);
+    assert.throws(() => normalizeScan({ ...raw, events: [{ ...raw.events[0], evidenceMessage: 1 }] }, state, 2, 4));
+    assert.throws(() => normalizeScan({ ...raw, events: Array(7).fill(raw.events[0]) }, state, 2, 4));
+});
+
+test('richer year allows six dated background events per month but still rejects overflow', () => {
+    const raw = { currentDate: '2024-01-01', country: 'Франция', setting: 'Современность', months: Array.from({ length: 12 }, (_, i) => ({ month: i + 1, events: [] })) };
+    raw.months[0].events = Array.from({ length: 6 }, (_, i) => ({ date: `2024-01-0${i + 1}`, kind: 'world', symbol: 'leaf', title: `Ярмарка ${i}` }));
+    assert.equal(normalizeYear(raw).events.length, 6);
+    raw.months[0].events.push({ ...raw.months[0].events[0] });
+    assert.throws(() => normalizeYear(raw));
 });

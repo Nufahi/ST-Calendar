@@ -1,7 +1,15 @@
-import { MONTHS, KINDS, clean, uid, emptyState, daysInMonth, dateKey, parseDate, weekday, shortDate, importState } from './core.js';
+import { MONTHS, KINDS, SYMBOLS, eventSymbol, isMemoryFact, clean, uid, emptyState, daysInMonth, dateKey, parseDate, weekday, shortDate, importState } from './core.js';
 import { SEED_PROMPT, SCAN_PROMPT } from './prompts.js';
 
 const paths = {
+    heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
+    flame: '<path d="M12 2c2 6-4 7-4 11 0 2 1 3 2 3-1-4 4-5 4-8 4 4 6 7 4 11-2 4-10 4-12-1C3 12 9 8 12 2Z"/>',
+    people: '<circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 5v3"/>',
+    leaf: '<path d="M20 3C10 2 3 6 4 13s10 10 14 2c2-4 2-8 2-12ZM3 21 15 9"/>',
+    compass: '<circle cx="12" cy="12" r="9"/><path d="m16 8-2 6-6 2 2-6Z"/>',
+    star: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z"/>',
+    moon: '<path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/><path d="M18 3v4m-2-2h4"/>',
     calendar: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 11h18m-13 4h2m4 0h2m-8 3h2"/>',
     close: '<path d="m6 6 12 12M6 18 18 6"/>',
     left: '<path d="m14 6-6 6 6 6"/>', right: '<path d="m10 6 6 6-6 6"/>',
@@ -21,6 +29,11 @@ function icon(name) {
     el.setAttribute('viewBox', '0 0 24 24'); el.setAttribute('fill', 'none'); el.setAttribute('stroke', 'currentColor');
     el.setAttribute('stroke-width', '1.6'); el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round');
     el.setAttribute('aria-hidden', 'true'); el.classList.add('stcal-icon'); el.innerHTML = paths[name] || paths.calendar; return el;
+}
+function eventBadge(event) {
+    const symbol = eventSymbol(event);
+    const badge = node('span', `stcal-event-badge stcal-symbol-${symbol}`);
+    badge.title = SYMBOLS[symbol]; badge.append(icon(symbol)); return badge;
 }
 function button(text, action, glyph, className = '') {
     const b = node('button', `stcal-btn ${className}`, ''); b.type = 'button';
@@ -202,6 +215,18 @@ export function mountUi(api) {
         for (const event of events) agenda.append(eventRow(event));
         agenda.append(button('Добавить пометку', () => { editor = { type: 'event', date: selected }; render(); }, 'plus'));
         body.append(agenda);
+        const monthEvents = s.events.filter(e => e.date.startsWith(dateKey(year, month, 1).slice(0, 7))).sort((a, b) => a.date.localeCompare(b.date));
+        if (!yearView && monthEvents.length) {
+            const overview = node('details', 'stcal-card stcal-month-agenda');
+            overview.append(node('summary', '', `В этом месяце · ${monthEvents.length} пометок`));
+            for (const event of monthEvents) {
+                const item = button('', () => { jump(event.date); render(); }, null, 'stcal-month-item');
+                item.append(eventBadge(event), node('span', 'stcal-month-day', String(parseDate(event.date).day)), node('span', 'stcal-month-copy', event.title));
+                item.title = `${KINDS[event.kind]} · ${event.detail || event.title}`;
+                overview.append(item);
+            }
+            body.append(overview);
+        }
         const tools = node('div', 'stcal-toolbar');
         tools.append(aiButton('Проверить сюжет', 'scan'));
         if (!s.years.includes(year)) tools.append(aiButton(`Придумать события ${year} года`, 'seed', year));
@@ -234,8 +259,14 @@ export function mountUi(api) {
             day.setAttribute('aria-label', `${shortDate(date)}${events.length ? `: ${events.map(e => e.title).join('; ')}` : ''}`);
             day.setAttribute('aria-pressed', String(selected === date));
             if (date === s.currentDate) { day.classList.add('stcal-today'); day.setAttribute('aria-current', 'date'); }
-            const dots = node('span', 'stcal-dots');
-            for (const kind of new Set(events.map(e => e.kind))) dots.append(node('i', `stcal-dot stcal-${kind}`));
+            const dots = node('span', mini ? 'stcal-dots' : 'stcal-day-symbols');
+            if (mini) {
+                for (const kind of new Set(events.map(e => e.kind))) dots.append(node('i', `stcal-dot stcal-${kind}`));
+            } else if (events.length) {
+                dots.append(eventBadge(events.find(isMemoryFact) || events[0]));
+                if (events.length > 1) dots.append(node('span', 'stcal-day-count', `+${events.length - 1}`));
+                day.classList.add('stcal-has-events');
+            }
             day.append(dots); grid.append(day);
         }
         grid.addEventListener('keydown', event => {
@@ -247,9 +278,10 @@ export function mountUi(api) {
         return grid;
     }
     function eventRow(event, dated = false) {
-        const row = node('article', 'stcal-event'); row.append(node('i', `stcal-dot stcal-${event.kind}`));
+        const row = node('article', 'stcal-event'); row.append(eventBadge(event));
         const content = node('div', 'stcal-event-copy');
-        content.append(node('span', 'stcal-eyebrow', `${dated ? `${shortDate(event.date)} · ` : ''}${KINDS[event.kind]}${event.kind !== 'story' ? ' · план мира' : ''}`), node('strong', '', event.title));
+        const meaning = event.kind !== 'story' ? 'план мира' : isMemoryFact(event) ? 'важное · для памяти' : 'момент · только календарь';
+        content.append(node('span', 'stcal-eyebrow', `${dated ? `${shortDate(event.date)} · ` : ''}${KINDS[event.kind]} · ${meaning}`), node('strong', '', event.title));
         if (event.detail) content.append(node('p', '', event.detail));
         const actions = node('div', 'stcal-event-actions');
         if (event.kind === 'story') {
@@ -280,6 +312,20 @@ export function mountUi(api) {
             inputs.title = input(current?.title || ''); inputs.title.required = true; inputs.title.maxLength = 60;
             inputs.detail = input(current?.detail || ''); inputs.detail.maxLength = 120;
             form.append(field('Тип', inputs.kind), field('Название · 2–7 слов', inputs.title), field('Суть · одна короткая фраза', inputs.detail));
+            inputs.importance = select(current?.importance || 'high', [['medium', 'Момент · только календарь'], ['high', 'Важное · для памяти РП'], ['critical', 'Переломное событие · для памяти РП']]);
+            const importanceField = field('Значимость сюжетной пометки', inputs.importance, 'Для праздников и планов мира не применяется. Закрепление добавляет момент в память.');
+            const syncKind = () => { importanceField.hidden = inputs.kind.value !== 'story'; };
+            inputs.kind.addEventListener('change', syncKind); syncKind(); form.append(importanceField);
+            inputs.symbol = { value: eventSymbol(current || { kind: 'story' }) };
+            const picker = node('div', 'stcal-symbol-picker'); picker.setAttribute('role', 'group'); picker.setAttribute('aria-label', 'Символ пометки');
+            for (const [symbol, label] of Object.entries(SYMBOLS)) {
+                const choice = button(label, () => {
+                    inputs.symbol.value = symbol;
+                    picker.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.symbol === symbol)));
+                }, symbol, `stcal-symbol-choice stcal-symbol-${symbol}`);
+                choice.dataset.symbol = symbol; choice.setAttribute('aria-pressed', String(inputs.symbol.value === symbol)); picker.append(choice);
+            }
+            form.append(node('span', 'stcal-label', 'Символ пометки'), picker);
         }
         const error = node('p', 'stcal-error'); error.setAttribute('role', 'alert');
         const tools = node('div', 'stcal-toolbar');
@@ -298,7 +344,7 @@ export function mountUi(api) {
             } else {
                 const title = clean(inputs.title.value, 60);
                 if (!title) { error.textContent = 'Напиши короткое название.'; return; }
-                const updated = { id: current?.id || uid(), date: date.value, kind: inputs.kind.value, title, detail: clean(inputs.detail.value), pinned: current?.pinned || false };
+                const updated = { id: current?.id || uid(), date: date.value, kind: inputs.kind.value, symbol: inputs.symbol.value, importance: inputs.importance.value, title, detail: clean(inputs.detail.value), pinned: current?.pinned || false };
                 if (current) Object.assign(current, updated, { generated: false, sourceScan: undefined });
                 else api.state().events.push(updated);
                 api.save();
@@ -319,7 +365,7 @@ export function mountUi(api) {
         const s = api.state();
         if (!s?.events) return;
         const history = card('Важное в сюжете');
-        const events = s.events.filter(e => e.kind === 'story').sort((a, b) => b.date.localeCompare(a.date));
+        const events = s.events.filter(isMemoryFact).sort((a, b) => b.date.localeCompare(a.date));
         if (!events.length) history.append(hint('Здесь появятся только значимые изменения.'));
         for (const event of events) history.append(eventRow(event, true));
         body.append(history);
@@ -344,6 +390,7 @@ export function mountUi(api) {
         if (settings.profileId && !options.some(([id]) => id === settings.profileId)) options.push([settings.profileId, 'Профиль удалён — выбери другой', true]);
         control(ai, 'profileId', 'Профиль подключения', options, 'Сохранённый профиль API Connections. Отдельный запрос, без переключения модели РП.');
         control(ai, 'autoScan', 'Автоматически проверять сюжет');
+        control(ai, 'includeMoments', 'Сохранять памятные моменты', null, 'Встречи, подарки, прогулки — в календарь. В память РП идут только важные или закреплённые пометки.');
         control(ai, 'interval', 'Интервал проверки', { min: 2, max: 100 }, '2 сообщения = пользователь + персонаж. После готового ответа.');
         control(ai, 'historyCount', 'Сообщений контекста', { min: 2, max: 100 });
         control(ai, 'maxTokens', 'Токенов на ответ', { min: 1024, max: 32768, step: 1024 }, 'Для целого года: 8192–16384.');

@@ -2,9 +2,12 @@
 export const KEY = 'ST-Calendar';
 export const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 export const KINDS = { holiday: 'Праздник', world: 'Событие мира', story: 'Сюжет' };
+export const SYMBOLS = Object.freeze({ heart: 'Отношения', sun: 'Отдых и праздники', flame: 'Конфликт', people: 'Встречи', leaf: 'Природа', compass: 'Путешествия', star: 'Достижения', moon: 'Тайны' });
+export function eventSymbol(event) { return Object.hasOwn(SYMBOLS, event?.symbol) ? event.symbol : event?.kind === 'holiday' ? 'sun' : event?.kind === 'world' ? 'leaf' : 'star'; }
+export function isMemoryFact(event) { return event.kind === 'story' && (event.pinned || !['medium', 'low'].includes(event.importance)); }
 export const DEFAULTS = Object.freeze({
     enabled: true, entry: 'wand', windowMode: 'popup', profileId: '',
-    autoScan: true, interval: 2, historyCount: 20, maxTokens: 8192,
+    autoScan: true, includeMoments: true, interval: 2, historyCount: 20, maxTokens: 8192,
     memoryMode: 'auto', memoryLimit: 2200, memoryCount: 10, upcomingDays: 14,
     depth: 1, extraContext: '', seedPrompt: '', scanPrompt: '',
 });
@@ -51,7 +54,7 @@ export function parseReply(raw) {
 }
 function note(raw, kind) {
     if (!raw || !parseDate(raw.date) || !clean(raw.title, 60)) throw new Error('У события нет корректной даты или названия.');
-    return { id: uid(), date: raw.date, title: clean(raw.title, 60), detail: clean(raw.detail, 120), kind, pinned: false };
+    return { id: uid(), date: raw.date, title: clean(raw.title, 60), detail: clean(raw.detail, 120), kind, symbol: eventSymbol({ ...raw, kind }), pinned: false };
 }
 export function normalizeYear(raw, targetYear = null) {
     const p = parseDate(raw.currentDate);
@@ -61,8 +64,8 @@ export function normalizeYear(raw, targetYear = null) {
     const seen = new Set();
     const events = [];
     for (const month of raw.months) {
-        if (!Number.isInteger(month?.month) || month.month < 1 || month.month > 12 || seen.has(month.month) || !Array.isArray(month.events) || month.events.length > 4) {
-            throw new Error('Некорректный список месяцев или больше 4 событий за месяц.');
+        if (!Number.isInteger(month?.month) || month.month < 1 || month.month > 12 || seen.has(month.month) || !Array.isArray(month.events) || month.events.length > 6) {
+            throw new Error('Некорректный список месяцев или больше 6 событий за месяц.');
         }
         seen.add(month.month);
         for (const item of month.events) {
@@ -76,12 +79,12 @@ export function normalizeYear(raw, targetYear = null) {
     if (!targetYear && (!clean(raw.country) || !clean(raw.setting))) throw new Error('Модель не определила страну или сеттинг.');
     return { currentDate: raw.currentDate, country: clean(raw.country), setting: clean(raw.setting, 400), era: clean(raw.era, 80), dateBasis: clean(raw.dateBasis, 240), year, events: dedupe(events) };
 }
-export function normalizeScan(raw, state, from, to) {
-    if (!parseDate(raw.currentDate) || !Array.isArray(raw.events) || raw.events.length > 3) throw new Error('Некорректный ответ анализатора событий.');
+export function normalizeScan(raw, state, from, to, includeMoments = true) {
+    if (!parseDate(raw.currentDate) || !Array.isArray(raw.events) || raw.events.length > 6) throw new Error('Некорректный ответ анализатора событий.');
     if (raw.currentDate !== state.currentDate && !clean(raw.dateEvidence, 200)) throw new Error('Дата изменилась без обоснования из сюжета.');
     const events = [];
     for (const item of raw.events) {
-        if (!['high', 'critical'].includes(item?.importance)) continue;
+        if (!['high', 'critical', ...(includeMoments ? ['medium'] : [])].includes(item?.importance)) continue;
         if (!Number.isInteger(item.evidenceMessage) || item.evidenceMessage < from || item.evidenceMessage >= to) throw new Error('Пометка ссылается не на новые сообщения.');
         events.push({ ...note(item, 'story'), importance: item.importance, evidenceMessage: item.evidenceMessage });
     }
@@ -128,7 +131,7 @@ export function memoryParts(state, settings) {
     const safe = text => String(text).replace(/\{\{/g, '［').replace(/\}\}/g, '］');
     const date = safe(`${state.currentDate} · ${state.country}${state.era ? ` · ${state.era}` : ''}`);
     const now = dayNumber(state.currentDate);
-    const facts = state.events.filter(e => e.kind === 'story' && e.date <= state.currentDate)
+    const facts = state.events.filter(e => isMemoryFact(e) && e.date <= state.currentDate)
         .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || b.date.localeCompare(a.date))
         .slice(0, settings.memoryCount);
     const upcoming = state.events.filter(e => e.kind !== 'story' && dayNumber(e.date) >= now && dayNumber(e.date) - now <= settings.upcomingDays)
@@ -154,7 +157,7 @@ export function importState(raw) {
     state.years = [...new Set((Array.isArray(raw.years) ? raw.years : []).filter(y => Number.isInteger(y) && y >= 1 && y <= 9999))];
     state.events = dedupe(raw.events.map(e => {
         if (!KINDS[e?.kind]) throw new Error('Неизвестный тип пометки.');
-        return { ...note(e, e.kind), pinned: !!e.pinned, generated: !!e.generated };
+        return { ...note(e, e.kind), importance: ['low', 'medium', 'high', 'critical'].includes(e.importance) ? e.importance : 'high', pinned: !!e.pinned, generated: !!e.generated };
     }));
     return state;
 }

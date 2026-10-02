@@ -96,10 +96,32 @@
 .stcal-dot.stcal-holiday { background: var(--stcal-accent); }
 .stcal-dot.stcal-world { background: #89b8bb; }
 .stcal-dot.stcal-story { background: #cc8ea3; }
+.stcal-shell .stcal-symbol-heart { --stcal-symbol: #db92ac; }
+.stcal-shell .stcal-symbol-sun { --stcal-symbol: #d6b66e; }
+.stcal-shell .stcal-symbol-flame { --stcal-symbol: #db947f; }
+.stcal-shell .stcal-symbol-people { --stcal-symbol: #91b8d6; }
+.stcal-shell .stcal-symbol-leaf { --stcal-symbol: #9abc8c; }
+.stcal-shell .stcal-symbol-compass { --stcal-symbol: #82c3bd; }
+.stcal-shell .stcal-symbol-star { --stcal-symbol: #c4a2db; }
+.stcal-shell .stcal-symbol-moon { --stcal-symbol: #a6a9d9; }
+.stcal-event-badge { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--stcal-border); border-radius: 11px; background: var(--stcal-soft); color: var(--stcal-symbol, var(--stcal-accent)); }
+.stcal-event-badge .stcal-icon { width: 18px; height: 18px; }
+.stcal-day-symbols { display: flex; align-items: center; justify-content: center; gap: 2px; min-height: 16px; }
+.stcal-day-symbols .stcal-event-badge { width: 16px; height: 16px; border: 0; border-radius: 0; background: transparent; }
+.stcal-day-symbols .stcal-icon { width: 15px; height: 15px; }
+.stcal-day-count { font-size: 9px; line-height: 1; color: var(--stcal-muted); }
+.stcal-shell .stcal-day.stcal-has-events { background: var(--stcal-soft); }
+.stcal-symbol-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.stcal-shell .stcal-symbol-choice { justify-content: flex-start; font-size: .78em; }
+.stcal-symbol-choice .stcal-icon { color: var(--stcal-symbol); }
+.stcal-shell .stcal-symbol-choice[aria-pressed="true"] { border-color: var(--stcal-symbol); background: var(--stcal-soft); }
+.stcal-month-agenda summary { cursor: pointer; font-size: .85em; padding: 3px 0; }
+.stcal-shell .stcal-month-item { display: flex; width: 100%; justify-content: flex-start; text-align: left; margin-top: 6px; }
+.stcal-month-day { flex: 0 0 2ch; font-variant-numeric: tabular-nums; text-align: center; }
+.stcal-month-copy { min-width: 0; overflow-wrap: anywhere; }
 .stcal-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; font-size: .7em; color: var(--stcal-muted); }
 .stcal-legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .stcal-event { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-top: 1px solid var(--stcal-border); }
-.stcal-event > .stcal-dot { margin-top: 8px; }
 .stcal-event-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
 .stcal-event-copy strong { font-weight: 600; font-size: .92em; }
 .stcal-event-copy p { font-size: .82em; line-height: 1.5; color: var(--stcal-muted); }
@@ -162,7 +184,7 @@
     .stcal-shell.stcal-floating { right: 8px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: calc(100vw - 16px); max-height: calc(100vh - 92px); max-height: calc(100dvh - 92px - env(safe-area-inset-bottom, 0px)); }
     #stcal-fab { right: 12px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
     .stcal-card { padding: 12px; }
-    .stcal-event { display: grid; grid-template-columns: 5px minmax(0, 1fr); gap: 8px; }
+    .stcal-event { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 8px; }
     .stcal-event-actions { grid-column: 2; justify-content: flex-start; gap: 4px; }
     .stcal-toolbar > .stcal-btn { flex: 1 1 130px; }
     :is(.stcal-shell, .stcal-settings-entry) .stcal-input { font-size: max(16px, .95em); }

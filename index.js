@@ -133,7 +133,7 @@ export function startCalendar() {
                 payload = { ...snapshot.material, lore, requestedYear: targetYear || 'Infer from the story', existingCalendar: s.currentDate ? { currentDate: s.currentDate, country: s.country, setting: s.setting, era: s.era } : null };
             } else {
                 system = options.scanPrompt.trim() || SCAN_PROMPT;
-                payload = { ...snapshot.material, lore, currentDate: s.currentDate, country: s.country, setting: s.setting, newRange: { from, toExclusive: to },
+                payload = { ...snapshot.material, lore, includeMoments: options.includeMoments, currentDate: s.currentDate, country: s.country, setting: s.setting, newRange: { from, toExclusive: to },
                     newMessages: messages.slice(from, to).map((m, i) => ({ index: from + i, name: m.name, role: m.is_user ? 'user' : 'character', text: m.mes.slice(-12000) })),
                     knownEvents: [...s.events.filter(e => e.kind === 'story').slice(-40), ...s.events.filter(e => e.kind !== 'story' && e.date >= s.currentDate).slice(0, 8)].map(({ date, title, detail, kind }) => ({ date, title, detail, kind })),
                 };
@@ -155,10 +155,10 @@ export function startCalendar() {
                 s.years = [...new Set([...s.years, result.year])].sort((a, b) => a - b);
                 save(); publish(`Готово: ${result.year} год, ${result.events.length} событий мира. Дата и страна доступны для правки.`);
             } else {
-                const result = normalizeScan(raw, s, from, to);
+                const result = normalizeScan(raw, s, from, to, options.includeMoments);
                 const count = s.events.length;
                 applyScan(s, result, messages, from, to);
-                save(); publish(s.events.length > count ? `Записано важных событий: ${s.events.length - count}.` : 'Проверено. Важных событий не было.');
+                save(); publish(s.events.length > count ? `Новых пометок: ${s.events.length - count}. В память РП идут только важные и закреплённые.` : 'Проверено. Новых событий для пометок не было.');
             }
             succeeded = true;
         } catch (error) {

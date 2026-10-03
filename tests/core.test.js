@@ -49,6 +49,36 @@ test('swipe rolls back affected facts and date, preserves earlier/manual notes',
     assert.equal(state.processed.length, 1);
     assert.deepEqual(state.events.map(e => e.title), ['Ручная заметка']);
 });
+test('pinned notes survive source edits and deletion, rescanning and export on their original day', () => {
+    for (const change of ['edit', 'delete']) {
+        const state = world();
+        const messages = [message('Начало'), message('Встреча'), message('Обещание')];
+        const pinned = fact('2024-02-29', 'Встреча', { id: 'pinned', pinned: true, importance: 'medium' });
+        applyScan(state, { currentDate: '2024-02-29', events: [pinned, fact('2024-02-29', 'Обещание')] }, messages, 0, 3);
+        if (change === 'edit') messages[1].mes = 'Другая встреча';
+        else messages.splice(1);
+        assert.equal(reconcile(state, messages), true);
+        assert.equal(state.currentDate, '2024-02-28');
+        assert.deepEqual(state.events, [pinned]);
+        assert.equal(state.events[0].sourceScan, undefined);
+        assert.equal(state.scans.length, 0);
+        applyScan(state, { currentDate: '2024-03-01', events: [fact('2024-02-29', 'Встреча')] }, messages, 0, messages.length);
+        assert.deepEqual(state.events, [pinned]);
+        assert.match(memoryParts(state, DEFAULTS).full, /Встреча/);
+        const imported = importState(JSON.parse(JSON.stringify(state)));
+        assert.equal(imported.events[0].pinned, true);
+        assert.equal(imported.events[0].date, '2024-02-29');
+    }
+});
+test('unpinning before a source change restores automatic rollback', () => {
+    const state = world();
+    const messages = [message('Встреча')];
+    applyScan(state, { currentDate: state.currentDate, events: [fact(state.currentDate, 'Встреча', { pinned: true })] }, messages, 0, 1);
+    state.events[0].pinned = false;
+    messages[0].mes = 'Встречи не было';
+    reconcile(state, messages);
+    assert.deepEqual(state.events, []);
+});
 test('deleting trailing messages invalidates their scan; new messages do not', () => {
     const state = world();
     const messages = [message('А'), message('Б')];

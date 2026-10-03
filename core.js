@@ -102,7 +102,7 @@ export function messageHash(message) {
     return (hash >>> 0).toString(16);
 }
 export function visibleMessages(chat) { return (chat || []).filter(m => m && !m.is_system && typeof m.mes === 'string' && m.mes.trim()); }
-/** Roll back analyses whose source was edited, swiped or deleted. */
+/** Roll back analyses whose source was edited, swiped or deleted; keep pinned notes. */
 export function reconcile(state, messages) {
     const hashes = messages.map(messageHash);
     let mismatch = 0;
@@ -111,7 +111,12 @@ export function reconcile(state, messages) {
     const invalid = state.scans.filter(scan => scan.to > mismatch);
     const ids = new Set(invalid.map(scan => scan.id));
     if (invalid.length) state.currentDate = invalid[0].beforeDate;
-    state.events = state.events.filter(event => !ids.has(event.sourceScan));
+    state.events = state.events.filter(event => {
+        if (!ids.has(event.sourceScan)) return true;
+        if (!event.pinned) return false;
+        delete event.sourceScan;
+        return true;
+    });
     state.scans = state.scans.filter(scan => !ids.has(scan.id));
     state.processed.length = Math.min(mismatch, invalid[0]?.from ?? mismatch);
     state.lastScan = '';

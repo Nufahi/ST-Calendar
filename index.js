@@ -165,7 +165,7 @@ export function startCalendar() {
                     for (const key of ['currentDate', 'country', 'setting', 'era', 'dateBasis']) s[key] = result[key];
                     s.processed = messages.map(messageHash);
                 }
-                s.events = dedupe([...s.events.filter(e => !(e.generated && e.kind !== 'story' && parseDate(e.date)?.year === result.year)), ...result.events]);
+                s.events = dedupe([...s.events.filter(e => e.pinned || !(e.generated && e.kind !== 'story' && parseDate(e.date)?.year === result.year)), ...result.events]);
                 s.years = [...new Set([...s.years, result.year])].sort((a, b) => a - b);
                 save(); publish(`Готово: ${result.year} год, ${result.events.length} событий мира. Дата и страна доступны для правки.`);
             } else {

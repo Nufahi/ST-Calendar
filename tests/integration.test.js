@@ -123,8 +123,52 @@ test('scan shows SVG moments, manual symbol selection persists and pinning opts 
         assert.equal(context.chatMetadata[KEY].events[0].symbol, 'people');
         assert.equal(context.chatMetadata[KEY].events[0].importance, 'medium');
         assert.doesNotMatch(context.prompt, /Встреча у реки/);
-        document.querySelector('[aria-label="Приоритет в памяти"]').click();
+        document.querySelector('[aria-label="Закрепить на дне"]').click();
         assert.match(context.prompt, /Встреча у реки/);
+    } finally { await env.cleanup(); }
+});
+test('pin survives the six-message auto-scan threshold, reload and source rollback', async () => {
+    const env = setup();
+    try {
+        const { api, context } = env; ready(context);
+        context.ConnectionManagerRequestService.sendRequest = async () => ({ content: JSON.stringify({ currentDate: '2040-01-01', events: [{ date: '2040-01-01', title: 'Встреча у реки', importance: 'medium', evidenceMessage: 2 }] }) });
+        await api.run('scan'); api.open();
+        document.querySelector('[aria-label="Закрепить на дне"]').click();
+        const pinned = structuredClone(api.state().events[0]);
+        assert.equal(pinned.pinned, true);
+        assert.equal(document.querySelector('[aria-label="Открепить пометку"]').getAttribute('aria-pressed'), 'true');
+        api.settings.interval = 6; api.settings.autoScan = true; api.saveSettings();
+        let calls = 0;
+        context.ConnectionManagerRequestService.sendRequest = async () => {
+            calls++;
+            return { content: JSON.stringify({ currentDate: '2040-01-02', dateEvidence: 'Наступил следующий день', events: [] }) };
+        };
+        for (let i = 0; i < 6; i++) context.chat.push({ mes: `Продолжение ${i}`, name: i % 2 ? 'Char' : 'User', is_user: i % 2 === 0 });
+        context.eventSource.emit('MESSAGE_RECEIVED');
+        const deadline = Date.now() + 3000;
+        while (api.state().processed.length < context.chat.length && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+        assert.equal(calls, 1);
+        assert.equal(api.state().processed.length, 9);
+        assert.deepEqual(api.state().events, [pinned]);
+        context.chatMetadata = JSON.parse(JSON.stringify(context.chatMetadata));
+        const reloaded = startCalendar();
+        context.chat[2].mes = 'Другой вариант ответа';
+        context.eventSource.emit('GENERATION_STARTED', 'normal', {}, false);
+        const { sourceScan, ...retained } = pinned;
+        assert.deepEqual(reloaded.state().events, [retained]);
+        assert.match(context.prompt, /Встреча у реки/);
+        reloaded.open();
+        assert.match(document.querySelector('[data-date="2040-01-01"]').getAttribute('aria-label'), /Встреча у реки/);
+    } finally { await env.cleanup(); }
+});
+test('refreshing generated world events preserves pinned entries on their original day', async () => {
+    const env = setup();
+    try {
+        const { api, context } = env; ready(context);
+        const pinned = { id: 'pinned-world', date: '2040-01-01', kind: 'holiday', title: 'Праздник', generated: true, pinned: true };
+        api.state().events = [pinned, { ...pinned, id: 'unpinned-world', title: 'Ярмарка', pinned: false }];
+        await api.run('seed', 2040);
+        assert.deepEqual(api.state().events, [pinned]);
     } finally { await env.cleanup(); }
 });
 test('editing source during an in-flight request discards the result', async () => {

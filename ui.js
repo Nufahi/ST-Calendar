@@ -281,11 +281,11 @@ export function mountUi(api) {
         const row = node('article', 'stcal-event'); row.append(eventBadge(event));
         const content = node('div', 'stcal-event-copy');
         const meaning = event.kind !== 'story' ? 'план мира' : isMemoryFact(event) ? 'важное · для памяти' : 'момент · только календарь';
-        content.append(node('span', 'stcal-eyebrow', `${dated ? `${shortDate(event.date)} · ` : ''}${KINDS[event.kind]} · ${meaning}`), node('strong', '', event.title));
+        content.append(node('span', 'stcal-eyebrow', `${dated ? `${shortDate(event.date)} · ` : ''}${KINDS[event.kind]} · ${meaning}${event.pinned ? ' · закреплено' : ''}`), node('strong', '', event.title));
         if (event.detail) content.append(node('p', '', event.detail));
         const actions = node('div', 'stcal-event-actions');
         if (event.kind === 'story') {
-            const pin = iconButton(event.pinned ? 'Открепить из памяти' : 'Приоритет в памяти', () => { event.pinned = !event.pinned; api.save(); }, 'pin'); pin.setAttribute('aria-pressed', String(event.pinned)); actions.append(pin);
+            const pin = iconButton(event.pinned ? 'Открепить пометку' : 'Закрепить на дне', () => { event.pinned = !event.pinned; api.save(); }, 'pin'); pin.setAttribute('aria-pressed', String(event.pinned)); actions.append(pin);
         }
         actions.append(iconButton('Редактировать пометку', () => { editor = { type: 'event', id: event.id }; render(); }, 'edit'), iconButton('Удалить пометку', () => {
             if (!window.confirm(`Удалить «${event.title}»?`)) return;
@@ -313,7 +313,7 @@ export function mountUi(api) {
             inputs.detail = input(current?.detail || ''); inputs.detail.maxLength = 120;
             form.append(field('Тип', inputs.kind), field('Название · 2–7 слов', inputs.title), field('Суть · одна короткая фраза', inputs.detail));
             inputs.importance = select(current?.importance || 'high', [['medium', 'Момент · только календарь'], ['high', 'Важное · для памяти РП'], ['critical', 'Переломное событие · для памяти РП']]);
-            const importanceField = field('Значимость сюжетной пометки', inputs.importance, 'Для праздников и планов мира не применяется. Закрепление добавляет момент в память.');
+            const importanceField = field('Значимость сюжетной пометки', inputs.importance, 'Для праздников и планов мира не применяется. Закрепление сохраняет пометку на её дне при пересчёте истории и даёт приоритет в памяти.');
             const syncKind = () => { importanceField.hidden = inputs.kind.value !== 'story'; };
             inputs.kind.addEventListener('change', syncKind); syncKind(); form.append(importanceField);
             inputs.symbol = { value: eventSymbol(current || { kind: 'story' }) };
@@ -391,14 +391,14 @@ export function mountUi(api) {
         control(ai, 'profileId', 'Профиль подключения', options, 'По умолчанию: активный профиль Connection Manager, а без него — текущее Chat Completion подключение ST. Для другой модели выбери сохранённый профиль.');
         control(ai, 'autoScan', 'Автоматически проверять сюжет');
         control(ai, 'includeMoments', 'Сохранять памятные моменты', null, 'Встречи, подарки, прогулки — в календарь. В память РП идут только важные или закреплённые пометки.');
-        control(ai, 'interval', 'Интервал проверки', { min: 2, max: 100 }, '2 сообщения = пользователь + персонаж. После готового ответа.');
+        control(ai, 'interval', 'Интервал проверки', { min: 2, max: 100 }, '2 сообщения = пользователь + персонаж. После готового ответа. Это частота анализа, а не срок хранения пометок.');
         control(ai, 'historyCount', 'Сообщений контекста', { min: 2, max: 100 });
         control(ai, 'maxTokens', 'Токенов на ответ', { min: 1024, max: 32768, step: 1024 }, 'Для целого года: 8192–16384.');
         body.append(ai);
         const memory = card('Память для РП');
         control(memory, 'memoryMode', 'Отправлять память', [['auto', 'Автоматически в промпт'], ['macro', 'Только через мои макросы'], ['off', 'Не отправлять']]);
         control(memory, 'memoryLimit', 'Лимит, символов', { min: 500, max: 8000 });
-        control(memory, 'memoryCount', 'Сюжетных пометок', { min: 1, max: 40 });
+        control(memory, 'memoryCount', 'Сюжетных пометок', { min: 1, max: 40 }, 'Лимит отправляемых в РП фактов. Записи на днях календаря не удаляются.');
         control(memory, 'upcomingDays', 'План на дней вперёд', { min: 0, max: 90 });
         control(memory, 'depth', 'Глубина вставки', { min: 0, max: 20 });
         body.append(memory);

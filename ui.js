@@ -181,7 +181,9 @@ export function mountUi(api) {
         if (!s?.currentDate) {
             const c = card('Какой сегодня день в твоём мире?'); c.classList.add('stcal-empty');
             c.prepend(icon('calendar'));
-            c.append(hint('Модель прочитает персонажа, персону, сценарий, связанный лор и последние сообщения. Определит дату и место, затем придумает уместные события на весь год.'), aiButton('Создать календарь года', 'seed'), button('Задать дату вручную', () => { editor = { type: 'world' }; render(); }, 'edit'));
+            c.append(hint('Модель прочитает персонажа, персону, сценарий и лорбук. Определит дату и место, подготовит год и отдельным запросом выберет главное из переписки по игровым дням.'));
+            control(c, 'historyCount', 'Сообщений для анализа', { min: 2, max: 100 }, 'Последние сообщения чата: по умолчанию 50. Можно изменить и позже в настройках.');
+            c.append(aiButton('Создать календарь года', 'seed'), button('Задать дату вручную', () => { editor = { type: 'world' }; render(); }, 'edit'));
             body.append(c); return;
         }
         if (!selected) jump(s.currentDate);
@@ -229,6 +231,7 @@ export function mountUi(api) {
         }
         const tools = node('div', 'stcal-toolbar');
         tools.append(aiButton('Проверить сюжет', 'scan'));
+        tools.append(aiButton(`Разобрать последние ${api.settings.historyCount} сообщений`, 'history'));
         if (!s.years.includes(year)) tools.append(aiButton(`Придумать события ${year} года`, 'seed', year));
         else tools.append(button('Обновить события года', () => { if (window.confirm(`Заново придумать фоновые события ${year} года? Ручные пометки и сюжетные факты сохранятся.`)) void api.run('seed', year); }, 'spark'));
         body.append(tools);
@@ -390,9 +393,9 @@ export function mountUi(api) {
         if (settings.profileId && !options.some(([id]) => id === settings.profileId)) options.push([settings.profileId, 'Профиль удалён — выбери другой', true]);
         control(ai, 'profileId', 'Профиль подключения', options, 'По умолчанию: активный профиль Connection Manager, а без него — текущее Chat Completion подключение ST. Для другой модели выбери сохранённый профиль.');
         control(ai, 'autoScan', 'Автоматически проверять сюжет');
-        control(ai, 'includeMoments', 'Сохранять памятные моменты', null, 'Встречи, подарки, прогулки — в календарь. В память РП идут только важные или закреплённые пометки.');
+        control(ai, 'includeMoments', 'Сохранять памятные моменты', null, 'По умолчанию — только главное по дням. Включи, чтобы разрешить также встречи, подарки и прогулки. В память РП идут только важные или закреплённые пометки.');
         control(ai, 'interval', 'Интервал проверки', { min: 2, max: 100 }, '2 сообщения = пользователь + персонаж. После готового ответа. Это частота анализа, а не срок хранения пометок.');
-        control(ai, 'historyCount', 'Сообщений контекста', { min: 2, max: 100 });
+        control(ai, 'historyCount', 'Сообщений для анализа', { min: 2, max: 100 }, 'По умолчанию 50 (от 2 до 100). При создании и повторном разборе — последние N сообщений; при проверке новых — размер пакета. Лорбук читается вместе с перепиской.');
         control(ai, 'maxTokens', 'Токенов на ответ', { min: 1024, max: 32768, step: 1024 }, 'Для целого года: 8192–16384.');
         body.append(ai);
         const memory = card('Память для РП');

@@ -13,12 +13,12 @@ function setup(configure = () => {}) {
     const eventTypes = Object.fromEntries(['CHAT_CHANGED', 'GENERATION_STARTED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_RECEIVED', 'MESSAGE_SENT', 'MESSAGE_SWIPED', 'MESSAGE_EDITED', 'MESSAGE_DELETED', 'CHARACTER_MESSAGE_RENDERED', 'USER_MESSAGE_RENDERED'].map(e => [e, e]));
     const macros = new Map();
     const context = {
-        extensionSettings: { [KEY]: { autoScan: false, profileId: 'analyst' }, connectionManager: { profiles: [{ id: 'analyst', name: 'Analyst', api: 'test' }] } },
+        extensionSettings: { [KEY]: { autoScan: false, includeMoments: true, profileId: 'analyst' }, connectionManager: { profiles: [{ id: 'analyst', name: 'Analyst', api: 'test' }] } },
         chatMetadata: {}, chat: [{ mes: 'Сегодня 1 января 2040 года', name: 'Char', is_user: false }],
         name1: 'User', name2: 'Char', characterId: 0, characters: [{ name: 'Char', personality: 'Добрый', scenario: 'Лондон' }],
         getCurrentChatId() { return this.id; }, id: 'chat-one',
         CONNECT_API_MAP: { test: { selected: 'openai', source: 'openai' } },
-        ConnectionManagerRequestService: { sendRequest: async () => ({ content: JSON.stringify(yearReply()) }) },
+        ConnectionManagerRequestService: { sendRequest: async (_id, messages) => ({ content: JSON.stringify(replyFor(messages)) }) },
         saveSettingsDebounced() {}, saveMetadata() {},
         setExtensionPrompt(_key, text) { context.prompt = text; },
         registerMacro(name, callback) { macros.set(name, callback); }, unregisterMacro(name) { macros.delete(name); },
@@ -30,11 +30,164 @@ function setup(configure = () => {}) {
     return { api, context, macros, async cleanup() { window.__stCalendarDispose(); await window.happyDOM.close(); } };
 }
 function yearReply() { return { currentDate: '2040-01-01', country: 'Англия', setting: 'Лондон', months: Array.from({ length: 12 }, (_, i) => ({ month: i + 1, events: [] })) }; }
+function replyFor(messages) { return JSON.parse(messages[1].content).newRange ? { currentDate: '2040-01-01', events: [] } : yearReply(); }
 function ready(context) {
     context.chatMetadata[KEY] = { ...emptyState(), currentDate: '2040-01-01', country: 'Англия', processed: context.chat.map(messageHash) };
     context.chat.push({ mes: 'Обещаю вернуться', name: 'User', is_user: true }, { mes: 'Мы заключили союз', name: 'Char', is_user: false });
 }
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+
+test('first creation analyzes the selected recent history and lore before saving both results', async () => {
+    const env = setup(context => {
+        delete context.extensionSettings[KEY].includeMoments;
+        context.chat = Array.from({ length: 65 }, (_, i) => ({ mes: `Сцена ${i}`, name: 'Char', is_user: false }));
+        context.chatMetadata.world_info = 'История мира';
+        context.characters[0].data = { extensions: { world: 'Герои' } };
+    });
+    try {
+        const { api, context } = env;
+        const loaded = [];
+        context.loadWorldInfo = async name => {
+            loaded.push(name);
+            return { entries: { one: { content: `Лор: ${name}` }, disabled: { disable: true, content: 'Скрытая запись' } } };
+        };
+        const requests = [];
+        context.ConnectionManagerRequestService.sendRequest = async (_id, messages) => {
+            const payload = JSON.parse(messages[1].content); requests.push(payload);
+            assert.match(payload.lore, /Лор: История мира/);
+            assert.match(payload.lore, /Лор: Герои/);
+            assert.doesNotMatch(payload.lore, /Скрытая запись/);
+            assert.equal(api.state().currentDate, '');
+            if (!payload.newRange) return { content: JSON.stringify(yearReply()) };
+            assert.equal(payload.analysisMode, 'history');
+            assert.equal(payload.includeMoments, false);
+            assert.deepEqual(payload.newRange, { from: 15, toExclusive: 65 });
+            assert.equal(payload.newMessages.length, 50);
+            assert.equal(payload.newMessages[0].index, 15);
+            assert.equal(payload.currentDate, '2040-01-01');
+            return { content: JSON.stringify({ currentDate: '2040-01-01', events: [
+                { date: '2039-12-31', title: 'Раскрыта тайна', importance: 'high', evidenceMessage: 20 },
+                { date: '2040-01-01', title: 'Заключён союз', importance: 'critical', evidenceMessage: 64 },
+            ] }) };
+        };
+        await api.run('seed');
+        assert.equal(requests.length, 2);
+        assert.deepEqual(loaded, ['История мира', 'Герои']);
+        assert.equal(api.state().events.filter(e => e.kind === 'story').length, 2);
+        assert.equal(api.state().processed.length, 65);
+        assert.equal(api.state().scans[0].from, 15);
+        assert.match(context.prompt, /Раскрыта тайна/);
+        assert.match(api.status, /2 сюжетных пометок по 50 сообщениям/);
+        context.chat[64].mes = 'Союз не состоялся';
+        context.eventSource.emit('GENERATION_STARTED', 'normal', {}, false);
+        assert.equal(api.state().events.length, 0);
+        assert.equal(api.state().processed.length, 15);
+        context.eventSource.emit('GENERATION_ENDED');
+        context.ConnectionManagerRequestService.sendRequest = async (_id, messages) => {
+            const payload = JSON.parse(messages[1].content);
+            assert.equal(payload.analysisMode, 'history');
+            assert.equal(payload.currentDate, '2040-01-01');
+            assert.deepEqual(payload.newRange, { from: 15, toExclusive: 65 });
+            return { content: JSON.stringify({ currentDate: payload.currentDate, events: [] }) };
+        };
+        await api.run('scan');
+        assert.equal(api.state().pendingHistory, undefined);
+        assert.equal(api.state().currentDate, '2040-01-01');
+    } finally { await env.cleanup(); }
+});
+
+test('history action recovers already processed messages with chosen count and deduplicates repeated facts', async () => {
+    const env = setup();
+    try {
+        const { api, context } = env; ready(context);
+        api.state().processed = context.chat.map(messageHash);
+        api.settings.historyCount = 2;
+        let calls = 0;
+        context.ConnectionManagerRequestService.sendRequest = async (_id, messages) => {
+            calls++;
+            const payload = JSON.parse(messages[1].content);
+            assert.equal(payload.analysisMode, 'history');
+            assert.deepEqual(payload.newRange, { from: 1, toExclusive: 3 });
+            if (calls === 2) assert.ok(payload.knownEvents.some(e => e.title === 'Заключён союз'));
+            return { content: JSON.stringify({ currentDate: '2040-01-01', events: [{ date: '2040-01-01', title: 'Заключён союз', importance: 'high', evidenceMessage: 2 }] }) };
+        };
+        await api.run('history');
+        await api.run('history');
+        assert.equal(calls, 2);
+        assert.equal(api.state().events.length, 1);
+        assert.equal(api.state().currentDate, '2040-01-01');
+        api.open();
+        assert.ok([...document.querySelectorAll('button')].some(b => b.textContent.includes('Разобрать последние 2 сообщений')));
+    } finally { await env.cleanup(); }
+});
+
+test('failed or stale second request leaves initial history unprocessed and calendar unsaved', async () => {
+    for (const outcome of ['invalid', 'cancel', 'edit', 'chat']) {
+        const env = setup();
+        try {
+            const { api, context } = env;
+            const originalMetadata = context.chatMetadata;
+            context.ConnectionManagerRequestService.sendRequest = async (_id, messages) => {
+                if (!JSON.parse(messages[1].content).newRange) return { content: JSON.stringify(yearReply()) };
+                if (outcome === 'cancel') api.cancel();
+                if (outcome === 'edit') context.chat[0].mes = 'Другой сюжет';
+                if (outcome === 'chat') {
+                    context.id = 'chat-two'; context.chatMetadata = {}; context.chat = [];
+                    context.eventSource.emit('CHAT_CHANGED');
+                }
+                return { content: outcome === 'invalid' ? '{}' : JSON.stringify({ currentDate: '2040-01-01', events: [] }) };
+            };
+            await api.run('seed');
+            assert.equal(originalMetadata[KEY].currentDate, '', outcome);
+            assert.deepEqual(originalMetadata[KEY].processed, [], outcome);
+            assert.deepEqual(originalMetadata[KEY].years, [], outcome);
+            if (outcome === 'chat') assert.equal(context.chatMetadata[KEY], undefined);
+        } finally { await env.cleanup(); }
+    }
+});
+
+test('incremental scans process every pending message in configurable sequential batches', async () => {
+    const env = setup();
+    try {
+        const { api, context } = env; ready(context);
+        api.settings.historyCount = 2;
+        context.chat.push({ mes: 'Следующий день', name: 'Char', is_user: false });
+        const ranges = [];
+        context.ConnectionManagerRequestService.sendRequest = async (_id, messages) => {
+            const payload = JSON.parse(messages[1].content); ranges.push(payload.newRange);
+            assert.equal(payload.analysisMode, 'incremental');
+            return { content: JSON.stringify({ currentDate: payload.currentDate, events: [] }) };
+        };
+        await api.run('scan'); await api.run('scan');
+        assert.deepEqual(ranges, [{ from: 1, toExclusive: 3 }, { from: 3, toExclusive: 4 }]);
+        assert.equal(api.state().processed.length, 4);
+    } finally { await env.cleanup(); }
+});
+
+test('history rollback still reaches new messages after the selected window is deleted', async () => {
+    const env = setup();
+    try {
+        const { api, context } = env; ready(context);
+        api.state().processed = context.chat.map(messageHash);
+        api.settings.historyCount = 2;
+        await api.run('history');
+        context.chat = [];
+        context.eventSource.emit('GENERATION_STARTED', 'normal', {}, false);
+        assert.equal(api.state().processed.length, 0);
+        context.eventSource.emit('GENERATION_ENDED');
+        context.chat.push({ mes: 'Новая сцена', name: 'Char', is_user: false });
+        let called = false;
+        context.ConnectionManagerRequestService.sendRequest = async (_id, messages) => {
+            called = true;
+            const payload = JSON.parse(messages[1].content);
+            assert.deepEqual(payload.newRange, { from: 0, toExclusive: 1 });
+            return { content: JSON.stringify({ currentDate: payload.currentDate, events: [] }) };
+        };
+        await api.run('scan');
+        assert.equal(called, true);
+        assert.equal(api.state().processed.length, 1);
+    } finally { await env.cleanup(); }
+});
 
 test('window mode changes in place and reopening recovers closed or detached shells', async () => {
     const env = setup();
@@ -67,7 +220,7 @@ test('seed via separate profile, DOM rendering, macros and scoped entrypoints', 
     try {
         const { api, context, macros } = env;
         let request;
-        context.ConnectionManagerRequestService.sendRequest = async (...args) => { request = args; return { content: JSON.stringify(yearReply()) }; };
+        context.ConnectionManagerRequestService.sendRequest = async (...args) => { request = args; return { content: JSON.stringify(replyFor(args[1])) }; };
         await api.run('seed');
         assert.equal(request[0], 'analyst');
         assert.equal(request[3].includePreset, true);
@@ -262,7 +415,7 @@ test('default connection works without a saved profile via isolated current CC r
                 assert.equal(payload.stream, false);
                 assert.equal(extract, true);
                 assert.ok(signal instanceof AbortSignal);
-                return { content: JSON.stringify(yearReply()) };
+                return { content: JSON.stringify(replyFor(payload.messages)) };
             },
         };
         await api.run('seed');

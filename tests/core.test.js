@@ -109,7 +109,7 @@ test('import detaches source history and validates types and dates', () => {
 test('moments stay out of memory across export/import unless pinned; symbols are allowlisted', () => {
     const state = world();
     const raw = { currentDate: state.currentDate, events: [
-        { ...fact(state.currentDate, 'Встреча на ярмарке'), importance: 'medium', symbol: 'people', evidenceMessage: 2 },
+        { ...fact('2024-02-27', 'Встреча на ярмарке'), importance: 'medium', symbol: 'people', evidenceMessage: 2 },
         { ...fact(state.currentDate, 'Заключён союз'), importance: 'high', symbol: '<svg onload=alert(1)>', evidenceMessage: 3 },
     ] };
     const result = normalizeScan(raw, state, 2, 4);
@@ -127,7 +127,18 @@ test('moments stay out of memory across export/import unless pinned; symbols are
     assert.match(memoryParts(imported, DEFAULTS).full, /Встреча на ярмарке/);
     assert.equal(normalizeScan(raw, state, 2, 4, false).events.length, 1);
     assert.throws(() => normalizeScan({ ...raw, events: [{ ...raw.events[0], evidenceMessage: 1 }] }, state, 2, 4));
-    assert.throws(() => normalizeScan({ ...raw, events: Array(7).fill(raw.events[0]) }, state, 2, 4));
+    assert.throws(() => normalizeScan({ ...raw, events: Array(101).fill(raw.events[0]) }, state, 2, 4));
+});
+
+test('daily highlights cover more than six days and keep the strongest candidate per day', () => {
+    const state = world();
+    const events = Array.from({ length: 10 }, (_, i) => ({ ...fact(`2024-02-${String(i + 1).padStart(2, '0')}`, `Событие ${i}`), importance: 'high', evidenceMessage: i }));
+    events.push({ ...events[0], title: 'Переломный момент', importance: 'critical' }, { ...events[0], title: 'Прогулка', importance: 'medium' });
+    const result = normalizeScan({ currentDate: state.currentDate, events }, state, 0, 50);
+    assert.equal(result.events.length, 10);
+    assert.equal(result.events[0].title, 'Переломный момент');
+    assert.equal(DEFAULTS.historyCount, 50);
+    assert.equal(DEFAULTS.includeMoments, false);
 });
 
 test('richer year allows six dated background events per month but still rejects overflow', () => {

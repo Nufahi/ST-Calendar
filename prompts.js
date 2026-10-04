@@ -27,7 +27,7 @@ OUTPUT
 Return only a JSON object, without Markdown or text outside it. The schema below shows one month solely for shape; the actual response MUST contain all twelve:
 {"currentDate":"YYYY-MM-DD","country":"region","setting":"one-line setting","era":"era or empty string","dateBasis":"evidence and explicitly marked assumptions","months":[{"month":1,"events":[{"date":"YYYY-01-DD","kind":"holiday","symbol":"sun","title":"brief title","detail":"brief background note"}]}]}`;
 
-export const SCAN_PROMPT = `You are a conservative chronology analyst for an ongoing roleplay, not its narrator. Examine newMessages within newRange using recentMessages, characters, persona, lore and knownEvents for context.
+export const SCAN_PROMPT = `You are a conservative chronology analyst for an ongoing roleplay, not its narrator. Examine ALL newMessages within newRange using recentMessages, characters, persona, lore and knownEvents for context. In analysisMode "history", newMessages means the selected recent history to analyze, including messages that may have been processed before. Read the lorebook to understand people, places, established chronology and the significance of what happened; then extract actual roleplay events from the messages, not just holidays.
 
 IMPORTANCE FILTER
 Use importance "high" or "critical" only for established changes with lasting consequences: a consequential pact or vow, a major revelation, significant loss, serious conflict, a genuine relationship turning point, completion of a goal or a meaningful relocation. These enter RP memory.
@@ -35,15 +35,16 @@ When includeMoments is true, also allow importance "medium" for distinct, memora
 Routine talk, glances, ordinary meals, passing emotions, movement around a room and repetitions are still omitted. A pleasant gesture or kiss is not automatically a relationship turning point. Rumours, threats, intentions, hypothetical dialogue, dreams and planning/reasoning blocks do not establish completed events.
 Prefer {"currentDate":"<unchanged supplied date>","dateEvidence":"","events":[]} when nothing noteworthy happened. Never invent facts to fill the calendar. Do not turn holiday/world plans into memories of participation.
 
-NOTES
-Return at most 6 events total, merging references to the same change or moment. Usually 0–3 is sufficient. Do not duplicate knownEvents. Use only importance "medium", "high" or "critical" as defined above; do not inflate importance to bypass the memory filter.
+DAILY HIGHLIGHTS
+Reconstruct the in-story days covered by the selected messages. For EACH day with a significant established event, select only its most important development and merge closely related facts into one short note. Cover all evidenced days, not just the latest day or the first six events. Return at most one note per day and at most 100 notes total. Empty or routine days need no note: never invent a daily quota. Do not duplicate knownEvents or rephrase them as new events. Prefer lasting consequences over optional medium moments. Use only importance "medium", "high" or "critical" as defined above; do not inflate importance to bypass the memory filter.
 ${SYMBOL_GUIDE}
-Each note needs evidenceMessage: an integer index supplied with a NEW message, from newRange.from inclusive to newRange.toExclusive exclusive. Old context can explain a new event but cannot supply its only evidence.
+Each note needs evidenceMessage: an integer index supplied in newMessages, from newRange.from inclusive to newRange.toExclusive exclusive. Lore and other context can explain an event but cannot supply its only evidence. A lorebook biography, scenario possibility or holiday entry alone is not a played scene.
 title: 2–7 words, at most 60 characters. detail: one terse phrase, at most 12 words and 120 characters, naming who and what changed or its consequence. No post summaries, descriptive prose, dialogue, HTML or macros.
 
 TIME
 Change currentDate only for an explicit scene date or an unambiguous elapsed interval such as "the next morning" or "three days later". Message count and real elapsed time mean nothing. A planned meeting date does not advance the current scene. If the date changes, dateEvidence must briefly quote/paraphrase supporting NEW scene evidence, at most 180 characters.
 Use valid Gregorian ISO YYYY-MM-DD dates, years 0001–9999. A flashback can establish a past event date but does not move the current scene backwards. Do not guess an exact historical date for a vaguely dated memory; omit that note if necessary. Without reliable temporal evidence retain the supplied currentDate.
+In analysisMode "history", currentDate anchors the LATEST known scene, not the start of the selected messages. Work backwards from explicit dates and unambiguous day transitions to date earlier events. Do not apply old "next morning" transitions again to that anchor. Retain currentDate unless an explicit latest scene date corrects it; never reset it to the first date in the history. In analysisMode "incremental", currentDate anchors the scene before newMessages and new time transitions can advance it. Several messages can describe one day; one message can span several days.
 
 LANGUAGE AND OUTPUT
 ${OUTPUT_LANGUAGE}
@@ -58,18 +59,20 @@ export function contextSnapshot(ctx, messages, settings) {
         : [];
     const cards = ids.length ? (ctx.characters || []).filter(c => ids.includes(c.avatar)) : [ctx.characters?.[ctx.characterId]].filter(Boolean);
     const parts = cards.map(c => ({ name: c.name, description: clean(c.description || c.data?.description, 8000), personality: clean(c.personality || c.data?.personality, 4000), scenario: clean(c.scenario || c.data?.scenario, 5000) }));
-    const books = [...new Set([ctx.chatMetadata?.world_info, ...cards.map(c => c.data?.extensions?.world)].filter(n => typeof n === 'string' && n))];
+    const books = [...new Set([ctx.chatMetadata?.world_info, ctx.powerUserSettings?.persona_description_lorebook, ...cards.map(c => c.data?.extensions?.world)].filter(n => typeof n === 'string' && n))];
+    const embeddedLore = cards.filter(c => !c.data?.extensions?.world).flatMap(c => Object.values(c.data?.character_book?.entries || {}))
+        .filter(e => e.enabled !== false && !e.disable && e.content).map(e => clean(e.content, 3000)).join('\n').slice(0, 12000);
     return {
         material: {
             characters: parts.length ? parts : [{ name: ctx.name2, description: clean(fields.description, 8000), personality: clean(fields.personality, 4000), scenario: clean(fields.scenario, 5000) }],
             user: { name: ctx.name1, persona: clean(fields.persona || ctx.powerUserSettings?.persona_description, 6000) },
             authorSetting: clean(settings.extraContext, 8000),
             recentMessages: messages.slice(-settings.historyCount).map((m, i, list) => ({ index: messages.length - list.length + i, name: m.name, role: m.is_user ? 'user' : 'character', text: m.mes.slice(-6000) })),
-        }, books,
+        }, books, embeddedLore,
     };
 }
-export async function readLore(ctx, books) {
-    if (!ctx.loadWorldInfo || !books.length) return '';
+export async function readLore(ctx, books, embeddedLore = '') {
+    if (!ctx.loadWorldInfo || !books.length) return embeddedLore;
     const parts = [];
     let remaining = 12000;
     for (const name of books.slice(0, 5)) {
@@ -78,5 +81,6 @@ export async function readLore(ctx, books) {
         parts.push(text); remaining -= text.length;
         if (remaining <= 0) break;
     }
+    if (remaining > 0 && embeddedLore) parts.push(embeddedLore.slice(0, remaining));
     return parts.join('\n');
 }

@@ -119,13 +119,17 @@ export function startCalendar() {
         const c = ctx();
         const messages = structuredClone(visibleMessages(c.chat));
         if (reconcile(s, messages)) { revision++; persist(); }
-        if (mode === 'scan' && !parseDate(s.currentDate)) { if (!automatic) notify('info', 'Сначала создай календарь года.'); return; }
-        const from = s.processed.length;
-        if (mode === 'scan' && from >= messages.length) { if (!automatic) publish('Новых сообщений для анализа нет.'); return; }
+        const firstSeed = mode === 'seed' && !parseDate(s.currentDate);
+        const recovery = mode === 'scan' ? s.pendingHistory : null;
+        const retrospective = mode === 'history' || firstSeed || !!recovery;
+        if (mode !== 'seed' && !parseDate(s.currentDate)) { if (!automatic) notify('info', 'Сначала создай календарь года.'); return; }
+        const from = recovery ? Math.min(recovery.from, s.processed.length, messages.length) : retrospective ? Math.max(0, messages.length - settings.historyCount) : s.processed.length;
+        if (mode !== 'seed' && from >= messages.length) { if (!automatic) publish(mode === 'history' ? 'В чате нет сообщений для анализа.' : 'Новых сообщений для анализа нет.'); return; }
         // Small sequential batches keep every unprocessed message reachable.
-        const to = mode === 'scan' ? Math.min(messages.length, from + settings.historyCount) : messages.length;
+        const to = recovery ? Math.min(messages.length, recovery.to) : mode === 'scan' ? Math.min(messages.length, from + settings.historyCount) : messages.length;
         const options = { ...settings, profileId: settings.profileId || c.extensionSettings.connectionManager?.selectedProfile || '', currentApi: c.mainApi, currentSettings: structuredClone(c.chatCompletionSettings || {}) };
         const snapshot = contextSnapshot(c, messages.slice(0, to), options);
+        const draft = structuredClone(s);
         const runEpoch = epoch;
         const runRevision = revision;
         const metadata = c.chatMetadata;
@@ -138,41 +142,46 @@ export function startCalendar() {
         publish(mode === 'seed' ? `Создаю календарь ${targetYear || 'сюжета'} · все 12 месяцев…` : `Проверяю сообщения ${from + 1}–${to}…`);
         let succeeded = false;
         try {
-            const lore = await readLore(c, snapshot.books);
+            const lore = await readLore(c, snapshot.books, snapshot.embeddedLore);
             currentJob.controller.signal.throwIfAborted();
-            let system;
-            let payload;
+            const analyze = (system, payload) => request(c, [{ role: 'system', content: system }, { role: 'user', content: JSON.stringify(payload) }], options, currentJob.controller.signal);
+            const isStale = () => {
+                const live = ctx();
+                return disposed || runEpoch !== epoch || runRevision !== revision || metadata !== live.chatMetadata || chatId !== live.getCurrentChatId() || JSON.stringify(sourceHashes) !== JSON.stringify(visibleMessages(live.chat).slice(0, to).map(messageHash));
+            };
+            let yearResult;
             if (mode === 'seed') {
-                system = options.seedPrompt.trim() || SEED_PROMPT;
-                payload = { ...snapshot.material, lore, requestedYear: targetYear || 'Infer from the story', existingCalendar: s.currentDate ? { currentDate: s.currentDate, country: s.country, setting: s.setting, era: s.era } : null };
-            } else {
-                system = options.scanPrompt.trim() || SCAN_PROMPT;
-                payload = { ...snapshot.material, lore, includeMoments: options.includeMoments, currentDate: s.currentDate, country: s.country, setting: s.setting, newRange: { from, toExclusive: to },
-                    newMessages: messages.slice(from, to).map((m, i) => ({ index: from + i, name: m.name, role: m.is_user ? 'user' : 'character', text: m.mes.slice(-12000) })),
-                    knownEvents: [...s.events.filter(e => e.kind === 'story').slice(-40), ...s.events.filter(e => e.kind !== 'story' && e.date >= s.currentDate).slice(0, 8)].map(({ date, title, detail, kind }) => ({ date, title, detail, kind })),
-                };
+                const raw = await analyze(options.seedPrompt.trim() || SEED_PROMPT, { ...snapshot.material, lore, requestedYear: targetYear || 'Infer from the story', existingCalendar: draft.currentDate ? { currentDate: draft.currentDate, country: draft.country, setting: draft.setting, era: draft.era } : null });
+                if (isStale()) { publish('Чат или календарь изменился: устаревший результат отброшен.'); return; }
+                yearResult = normalizeYear(raw, targetYear);
+                if (firstSeed) {
+                    for (const key of ['currentDate', 'country', 'setting', 'era', 'dateBasis']) draft[key] = yearResult[key];
+                }
+                draft.events = dedupe([...draft.events.filter(e => e.pinned || !(e.generated && e.kind !== 'story' && parseDate(e.date)?.year === yearResult.year)), ...yearResult.events]);
+                draft.years = [...new Set([...draft.years, yearResult.year])].sort((a, b) => a - b);
             }
-            const raw = await request(c, [{ role: 'system', content: system }, { role: 'user', content: JSON.stringify(payload) }], options, currentJob.controller.signal);
-            const live = ctx();
-            const currentHashes = visibleMessages(live.chat).slice(0, to).map(messageHash);
-            if (disposed || runEpoch !== epoch || runRevision !== revision || metadata !== live.chatMetadata || chatId !== live.getCurrentChatId() || JSON.stringify(sourceHashes) !== JSON.stringify(currentHashes)) {
+            if (mode !== 'seed' || firstSeed && from < to) {
+                if (firstSeed) publish(`Год подготовлен. Выбираю главное по дням · сообщения ${from + 1}–${to}…`);
+                const payload = { ...snapshot.material, lore, analysisMode: retrospective ? 'history' : 'incremental', includeMoments: options.includeMoments, currentDate: draft.currentDate, country: draft.country, setting: draft.setting, newRange: { from, toExclusive: to },
+                    newMessages: messages.slice(from, to).map((m, i) => ({ index: from + i, name: m.name, role: m.is_user ? 'user' : 'character', text: m.mes.slice(-12000) })),
+                    knownEvents: [...draft.events.filter(e => e.kind === 'story').slice(-200), ...draft.events.filter(e => e.kind !== 'story' && e.date >= draft.currentDate).slice(0, 8)].map(({ date, title, detail, kind }) => ({ date, title, detail, kind })),
+                };
+                const raw = await analyze(options.scanPrompt.trim() || SCAN_PROMPT, payload);
+                const scanResult = normalizeScan(raw, draft, from, to, options.includeMoments);
+                applyScan(draft, scanResult, messages, from, to, retrospective ? 'history' : 'incremental');
+                delete draft.pendingHistory;
+            }
+            if (isStale()) {
                 publish('Чат или календарь изменился: устаревший результат отброшен.'); return;
             }
+            const added = draft.events.filter(e => e.kind === 'story').length - s.events.filter(e => e.kind === 'story').length;
+            if (!draft.pendingHistory) delete s.pendingHistory;
+            Object.assign(s, draft);
+            save();
             if (mode === 'seed') {
-                const result = normalizeYear(raw, targetYear);
-                const first = !s.currentDate;
-                if (first) {
-                    for (const key of ['currentDate', 'country', 'setting', 'era', 'dateBasis']) s[key] = result[key];
-                    s.processed = messages.map(messageHash);
-                }
-                s.events = dedupe([...s.events.filter(e => e.pinned || !(e.generated && e.kind !== 'story' && parseDate(e.date)?.year === result.year)), ...result.events]);
-                s.years = [...new Set([...s.years, result.year])].sort((a, b) => a - b);
-                save(); publish(`Готово: ${result.year} год, ${result.events.length} событий мира. Дата и страна доступны для правки.`);
+                publish(`Готово: ${yearResult.year} год, ${yearResult.events.length} событий мира${firstSeed ? `, ${added} сюжетных пометок по ${to - from} сообщениям` : ''}. Дата и страна доступны для правки.`);
             } else {
-                const result = normalizeScan(raw, s, from, to, options.includeMoments);
-                const count = s.events.length;
-                applyScan(s, result, messages, from, to);
-                save(); publish(s.events.length > count ? `Новых пометок: ${s.events.length - count}. В память РП идут только важные и закреплённые.` : 'Проверено. Новых событий для пометок не было.');
+                publish(added > 0 ? `Новых пометок: ${added}. В память РП идут только важные и закреплённые.` : 'Проверено. Новых событий для пометок не было.');
             }
             succeeded = true;
         } catch (error) {
@@ -242,6 +251,7 @@ export function startCalendar() {
             const s = state(true); if (!s) return;
             // Manual correction becomes a new anchor; earlier facts stay intact.
             s.currentDate = date; s.scans = []; s.events.forEach(e => delete e.sourceScan);
+            delete s.pendingHistory;
             save();
         },
     };

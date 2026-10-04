@@ -7,7 +7,7 @@ export function eventSymbol(event) { return Object.hasOwn(SYMBOLS, event?.symbol
 export function isMemoryFact(event) { return event.kind === 'story' && (event.pinned || !['medium', 'low'].includes(event.importance)); }
 export const DEFAULTS = Object.freeze({
     enabled: true, entry: 'wand', windowMode: 'popup', profileId: '',
-    autoScan: true, includeMoments: true, interval: 2, historyCount: 20, maxTokens: 8192,
+    autoScan: true, includeMoments: false, interval: 2, historyCount: 50, maxTokens: 8192,
     memoryMode: 'auto', memoryLimit: 2200, memoryCount: 10, upcomingDays: 14,
     depth: 1, extraContext: '', seedPrompt: '', scanPrompt: '',
 });
@@ -80,7 +80,7 @@ export function normalizeYear(raw, targetYear = null) {
     return { currentDate: raw.currentDate, country: clean(raw.country), setting: clean(raw.setting, 400), era: clean(raw.era, 80), dateBasis: clean(raw.dateBasis, 240), year, events: dedupe(events) };
 }
 export function normalizeScan(raw, state, from, to, includeMoments = true) {
-    if (!parseDate(raw.currentDate) || !Array.isArray(raw.events) || raw.events.length > 6) throw new Error('Некорректный ответ анализатора событий.');
+    if (!parseDate(raw.currentDate) || !Array.isArray(raw.events) || raw.events.length > 100) throw new Error('Некорректный ответ анализатора событий.');
     if (raw.currentDate !== state.currentDate && !clean(raw.dateEvidence, 200)) throw new Error('Дата изменилась без обоснования из сюжета.');
     const events = [];
     for (const item of raw.events) {
@@ -88,7 +88,14 @@ export function normalizeScan(raw, state, from, to, includeMoments = true) {
         if (!Number.isInteger(item.evidenceMessage) || item.evidenceMessage < from || item.evidenceMessage >= to) throw new Error('Пометка ссылается не на новые сообщения.');
         events.push({ ...note(item, 'story'), importance: item.importance, evidenceMessage: item.evidenceMessage });
     }
-    return { currentDate: raw.currentDate, dateEvidence: clean(raw.dateEvidence, 200), events: dedupe(events) };
+    // Keep the most consequential note for each day in this analysis, even if
+    // the model returns several candidates. Existing/manual notes stay intact.
+    const daily = new Map();
+    const rank = { medium: 1, high: 2, critical: 3 };
+    for (const event of events) {
+        if (!daily.has(event.date) || rank[event.importance] > rank[daily.get(event.date).importance]) daily.set(event.date, event);
+    }
+    return { currentDate: raw.currentDate, dateEvidence: clean(raw.dateEvidence, 200), events: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)) };
 }
 function identity(event) { return `${event.date}|${event.kind}|${event.title.toLocaleLowerCase()}`; }
 export function dedupe(events) {
@@ -109,6 +116,11 @@ export function reconcile(state, messages) {
     while (mismatch < state.processed.length && mismatch < hashes.length && state.processed[mismatch] === hashes[mismatch]) mismatch++;
     if (mismatch === state.processed.length) return false;
     const invalid = state.scans.filter(scan => scan.to > mismatch);
+    // Replaying a retrospective window must not advance its latest-scene
+    // anchor through the same day transitions a second time.
+    const history = invalid[0]?.analysisMode === 'history' ? invalid[0] : null;
+    if (history) state.pendingHistory = { from: history.from, to: history.to };
+    else delete state.pendingHistory;
     const ids = new Set(invalid.map(scan => scan.id));
     if (invalid.length) state.currentDate = invalid[0].beforeDate;
     state.events = state.events.filter(event => {
@@ -122,9 +134,9 @@ export function reconcile(state, messages) {
     state.lastScan = '';
     return true;
 }
-export function applyScan(state, result, messages, from, to) {
+export function applyScan(state, result, messages, from, to, analysisMode = 'incremental') {
     const id = uid();
-    state.scans.push({ id, from, to, beforeDate: state.currentDate });
+    state.scans.push({ id, from, to, beforeDate: state.currentDate, analysisMode });
     state.events = dedupe([...state.events, ...result.events.map(event => ({ ...event, sourceScan: id }))]);
     state.currentDate = result.currentDate;
     state.processed = messages.slice(0, to).map(messageHash);
